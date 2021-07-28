@@ -32,10 +32,22 @@ class ZahnerError(Exception):
 
     def __init__(self, message):
         self.message = message
-        super().__init__(self.message)
-        
+        super().__init__(self.message)        
 
-        
+
+
+class ZahnerConnectionError(ZahnerError):
+    """ Exception which is thrown when an connection error occurs.
+    
+    This exception is thrown if, for example, the connection to the device is interrupted or an
+    attempt is made to connect to a device that does not exist.
+    """
+    def __init__(self, message):
+        self.message = message
+        super().__init__(self.message)
+
+
+
 class ZahnerDataProtocolError(ZahnerError):
     """ Exception which is thrown when an error occurs in the data protocol.
     

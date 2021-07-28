@@ -27,7 +27,7 @@ THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 from abc import ABCMeta, abstractmethod
 from datetime import datetime
 import threading
-import time
+from .error import ZahnerConnectionError
 import serial
 from enum import Enum
 import queue
@@ -58,8 +58,9 @@ class SerialInterface(metaclass=ABCMeta):
         :param serialName: Name of the serial interface.
         """
         self.serialName = serialName
-        self.connect(self.serialName)
+        self.serialConnection = None
         self.logData = []
+        self.connect(self.serialName)
         self._startTelegramListener()
     
     def connect(self, serialName=None):
@@ -77,9 +78,15 @@ class SerialInterface(metaclass=ABCMeta):
             else:
                 self.serialName = serialName
                 self.serialConnection = serial.Serial(port=serialName)
-        except:
-            print('no serial connection possible: ' + self.serialName)
-        return self.isConnected()
+        except SerialException:
+            if self.serialName == None:
+                self.serialName = "None"
+            raise ZahnerConnectionError("could not open port: " + self.serialName) from None
+        if self.isConnected() == False:
+            if self.serialName == None:
+                self.serialName = "None"
+            raise ZahnerConnectionError("could not open port: " + self.serialName) from None 
+        return
         
     def isConnected(self):
         """ Check if there is a connection to a serial interface.
@@ -98,7 +105,16 @@ class SerialInterface(metaclass=ABCMeta):
         """
         if DEBUG:
             self.writeLog(data, "write")
-        self.serialConnection.write(data)
+        try:
+            self.serialConnection.write(data)
+        except SerialException:
+            """
+            Nothing can be sent to the device. The connection was probably interrupted and must be
+            completely reestablished. So that everything is finished cleanly, close is called to
+            terminate the threads.
+            """
+            self.close()
+            raise ZahnerConnectionError("Connection to the device interrupted") from None
         return
                 
     def close(self):
@@ -180,7 +196,7 @@ class SerialInterface(metaclass=ABCMeta):
             interrupt the operations.
             """
             self._receiving_worker_is_running = False
-            self.serialConnection.cancel_read()  #Stop blocking operations immediately
+            self.serialConnection.cancel_read()
             self.serialConnection.cancel_write()
             self.serialConnection.close()
         except:
@@ -230,7 +246,10 @@ class SerialCommandInterface(SerialInterface):
         :type commandType: :class:`~zahner_potentiostat.scpi_control.serial_interface.CommandType`
         :returns: The answer string.
         """
-        return self.queues[commandType.value].get(True, timeout=timeout)
+        reply = self.queues[commandType.value].get(True, timeout=timeout)
+        if reply == None:
+            raise ZahnerConnectionError("Connection to the device interrupted")
+        return reply
       
     def sendStringAndWaitForReplyString(self, string, commandType=CommandType.COMMAND):
         """ Sending a string and waiting for the response.
@@ -313,7 +332,7 @@ class SerialCommandInterface(SerialInterface):
                         self.waiting[waitingKeys[0]] = None
                     else:
                         raise ValueError("Nothing sent, which includes the answer: " + line)
-            except SerialException:
+            except (SerialException, TypeError):
                 self._receiving_worker_is_running = False
         
         if self._receiving_worker_is_running is False:
@@ -322,7 +341,7 @@ class SerialCommandInterface(SerialInterface):
                 if self.waiting[key] != None:
                     waitingKeys.append(key)
             for key in waitingKeys:
-                self.queues[key].put("threads terminated")
+                self.queues[key].put(None)
                 self.waiting[key] = None
         return
         
@@ -344,9 +363,12 @@ class SerialDataInterface(SerialInterface):
         """ Method in which the receive thread runs.
         """
         while self._receiving_worker_is_running:
-            bytes = self.serialConnection.read_all()
-            for byte in bytes:
-                self.queue.put(byte)
+            try:
+                receivedBytes = self.serialConnection.read_all()
+                for byte in receivedBytes:
+                    self.queue.put(byte)
+            except:
+                self._receiving_worker_is_running = False
         
         if self._receiving_worker_is_running is False:
             """

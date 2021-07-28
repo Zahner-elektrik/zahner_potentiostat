@@ -6,14 +6,14 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="zahner_potentiostat",
-    version = "1.0.3",
+    version = "1.0.4",
     author="Maximilian Krapp",
     author_email="maximilian.krapp@zahner.de",
     description="Library to control Zahner Potentiostats.",
     keywords=["potentiostat, electrochemistry, chemistry, eis, cyclic voltammetry, fuel-cell, battery"],
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://http://zahner.de/",
+    url="http://zahner.de/",
     project_urls={
         "Documentation": "http://zahner.de/documentation/zahner_potentiostat/index.html",
         "Bug Tracker": "https://github.com/Zahner-elektrik/zahner_potentiostat/issues",

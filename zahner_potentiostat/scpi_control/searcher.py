@@ -63,7 +63,7 @@ class SCPIDeviceSearcher():
         
         :returns: Returns a list with serial numbers of connected Zahner devices. The serial numbers are strings.
         """
-        devices = self.searchDevicesWithIDN([])
+        devices = self.searchDevicesWithIDN(None)
         return devices
         
     def searchZahnerDevices(self):
@@ -236,7 +236,10 @@ class SCPIDeviceSearcher():
         
         :returns: The first comport with an HP device.
         """
-        return self.comportsWithHPDevice.pop(0)
+        if len(self.comportsWithHPDevice) > 0:
+            return self.comportsWithHPDevice.pop(0)
+        else:
+            return None
         
     def _getAvailableSerialInterfaceNames(self):
         """ Detect the available serial interfaces.
