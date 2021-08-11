@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="zahner_potentiostat",
-    version = "1.0.4",
+    version = "1.0.5",
     author="Maximilian Krapp",
     author_email="maximilian.krapp@zahner.de",
     description="Library to control Zahner Potentiostats.",

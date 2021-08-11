@@ -27,6 +27,7 @@ THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import EngFormatter
+import numpy as np
 
 
 class DCPlot(object):
@@ -60,10 +61,11 @@ class DCPlot(object):
     """
     colors = ["r", "b", "g", "c", "m", "y"]
     
-    def __init__(self, figureTitle, xAxisLabel, xAxisUnit, yAxis, data = None):
+    def __init__(self, figureTitle, xAxisLabel, xAxisUnit, yAxis, data = None,**kwargs):
         self._isOpen = True
         self.xData = []
         self.yData = []
+        self.yAxisConfig = yAxis
         xFormatter = EngFormatter(unit=xAxisUnit)
         yFormatters = []
         for yAx in yAxis:
@@ -91,6 +93,8 @@ class DCPlot(object):
             axLabel = ""
             if "label" in yAx.keys():
                 axLabel = yAx["label"]
+                if "log" in self.yAxisConfig[i] and self.yAxisConfig[i]["log"] == True:
+                    axLabel = "|" + axLabel + "|"
                 
             color = "fuchsia"  # default, if there are not enough colors in the array
             if i < len(DCPlot.colors):
@@ -125,7 +129,9 @@ class DCPlot(object):
         self.axis.set_xlabel(xAxisLabel)
         self.axis.xaxis.grid(which='both', linestyle='--')
         self.axis.yaxis.grid(which='both', linestyle='--')
-        plt.legend(handles=self.line, loc="best")
+        
+        if len(yAxis) > 1:
+            plt.legend(handles=self.line, loc="best")
         
         if data != None:
             self.addData(data[0], data[1])
@@ -155,8 +161,13 @@ class DCPlot(object):
             self.xData.append(data)
             
         for i in range(len(self.yData)):
-            for data in yDatas[i]:
-                self.yData[i].append(data)
+            absRequired = False
+            if "log" in self.yAxisConfig[i] and self.yAxisConfig[i]["log"] == True:
+                    absRequired = True
+            if absRequired == False:
+                self.yData[i] = yDatas[i]
+            else:
+                self.yData[i] = np.abs(yDatas[i])
                 
             self.line[i].set_ydata(self.yData[i])
             self.line[i].set_xdata(self.xData)

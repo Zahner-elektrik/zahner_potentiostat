@@ -76,7 +76,7 @@ class PlottingProcess:
                     self._display.clearData()
                     self._display.addData(command[0], command[1])
 
-    def __call__(self, pipe):
+    def __call__(self, pipe, displayConfiguration):
         """ Call method implementation.
         
         Initialization and call of the main loop of the process in which the data is processed and plotted.
@@ -84,14 +84,14 @@ class PlottingProcess:
         :param pipe: multiprocessing.Pipe() object from the process.
         """
         self._pipe = pipe
-        self._display = DCPlot("Online Display", "Time", "s", [{"label": "Voltage", "unit": "V"}, {"label": "Current", "unit": "A"}])
+        self._display = DCPlot(**displayConfiguration)
         
         self.processingLoop()
 
 
 class OnlineDisplay(object):
     """
-    Online display class, which allows to display live the measurement data over time while the
+    Online display class, which allows to display live the measurement data while the
     measurement is taking place.
     
     This class sends the data to the plotting process, which is then displayed by the other process.
@@ -102,19 +102,87 @@ class OnlineDisplay(object):
     The other possibility is to pass the data with the variable data. Then the data must be passed
     as you can read in the documentation of :func:`~zahner_potentiostat.display.dcplot.DCPlot.addData`.
     
+    By default, the X axis is time and current and voltage are each displayed on a Y axis.
+    
+    The variable displayConfiguration can be used to change the display format.
+    With this variable either two default settings can be selected, or everything can be set individually.
+    
+    displayConfiguration="UI": X-axis voltage, Y-axis current.
+    displayConfiguration="UlogI": X-axis voltage, Y-axis magnitude of current logarithmically scaled.
+    
+    Instead of the default diagram presets, the axis labeling and the data type can also be changed individually
+    by passing a dictionary. All parameters from the two following examples must be passed.
+    With x/yTrackName the name of the data track is passed, which is to be displayed on the axis.
+    
+    displayConfiguration = {
+        "figureTitle":"My Custom Online Display",
+        "xAxisLabel":"Time",
+        "xAxisUnit":"s",
+        "xTrackName":TrackTypes.TIME.toString(),
+        "yAxis":[
+        {"label": "Cell Potential", "unit": "V", "trackName":TrackTypes.VOLTAGE.toString()},
+        {"label": "Cell Current", "unit": "A", "trackName":TrackTypes.CURRENT.toString()}
+        ]}
+    
+    or
+    
+    displayConfiguration = {
+        "figureTitle":"Online Display",
+        "xAxisLabel":"Potential",
+        "xAxisUnit":"V",
+        "xTrackName":TrackTypes.VOLTAGE.toString(),
+        "yAxis":[
+        {"label": "Current", "unit": "A", "name": "Current", "log": True, "trackName":TrackTypes.CURRENT.toString()}
+        ]}
+    
+
+    
     :param dataReceiver: Receiver object.
     :type dataReceiver: :class:`~zahner_potentiostat.scpi_control.datareceiver.DataReceiver`
     :param data: Packed into an array: [xData, yDatas]
+    :param displayConfiguration: Default value None for TIU diagrams. A dict or string as explained
+        in the previous text for other representations.
     """
-
-    def __init__(self, dataReceiver, data=None):
+    def __init__(self, dataReceiver, data=None, displayConfiguration=None):
         self._dataReveiver = dataReceiver
         self._numberOfPoints = 0
         self._processingLoopRunning = True
+        self.xTrackName = None
+        self.yTrackNames = []
+        
+        configuration = {"figureTitle":"Online Display",
+                         "xAxisLabel":"Time",
+                         "xAxisUnit":"s",
+                         "xTrackName":TrackTypes.TIME.toString(),
+                         "yAxis":
+        [{"label": "Voltage", "unit": "V", "trackName":TrackTypes.VOLTAGE.toString()},
+         {"label": "Current", "unit": "A", "trackName":TrackTypes.CURRENT.toString()}]
+        }
+        
+        if isinstance(displayConfiguration, dict):
+            self.xTrackName = configuration["xTrackName"]
+            for yAxis in configuration["yAxis"]:
+                self.yTrackNames.append(yAxis["trackName"])
+            configuration = displayConfiguration
+        elif isinstance(displayConfiguration, str):
+            if "UI" == displayConfiguration:
+                self.xTrackName = TrackTypes.VOLTAGE.toString()
+                self.yTrackNames = [TrackTypes.CURRENT.toString()]
+                configuration = {"figureTitle":"Online Display", "xAxisLabel":"Voltage", "xAxisUnit":"V", "yAxis":[{"label": "Current", "unit": "A", "name": "Current", "log": False}]}
+            elif "UlogI" == displayConfiguration:
+                self.xTrackName = TrackTypes.VOLTAGE.toString()
+                self.yTrackNames = [TrackTypes.CURRENT.toString()]
+                configuration = {"figureTitle":"Online Display", "xAxisLabel":"Voltage", "xAxisUnit":"V", "yAxis":[{"label": "Current", "unit": "A", "name": "Current", "log": True}]}
+        else:
+            self.xTrackName = configuration["xTrackName"]
+            for yAxis in configuration["yAxis"]:
+                self.yTrackNames.append(yAxis["trackName"])
+            
+        
         self.plot_pipe, plotter_pipe = multiprocessing.Pipe()
         self.plotter = PlottingProcess()
         self.plot_process = multiprocessing.Process(
-            target=self.plotter, args=(plotter_pipe,), daemon=True)
+            target=self.plotter, args=(plotter_pipe,configuration,), daemon=True)
         self.plot_process.start()
         
         if data == None:
@@ -161,15 +229,16 @@ class OnlineDisplay(object):
         
         :param data: The data to plot. data = [xData, yDatas]. Like :func:`~zahner_potentiostat.display.dcplot.DCPlot.addData`.
         """
-        x = data[TrackTypes.TIME.toString()]
-        y1 = data[TrackTypes.VOLTAGE.toString()]
-        y2 = data[TrackTypes.CURRENT.toString()]
+        x = data[self.xTrackName]
+        y = []
+        for trackName in self.yTrackNames:
+            y.append(data[trackName])
         
         if self.plot_pipe.closed:
             self._processingLoopRunning = False
         else:
             try:
-                self.plot_pipe.send([x, [y1, y2]])
+                self.plot_pipe.send([x, y])
             except:
                 self._processingLoopRunning = False
         return
