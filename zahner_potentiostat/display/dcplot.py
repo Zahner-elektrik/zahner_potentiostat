@@ -48,11 +48,13 @@ class DCPlot(object):
     By default, matplotlib would wait until the display is closed by the user.
     
     Example of how the yAxis parameter must be formatted:
-        [{"label": "Voltage", "unit": "V"}, {"label": "Current", "unit": "A", "log": True}]
+    
+    [{"label": "Voltage", "unit": "V"}, {"label": "Current", "unit": "A", "log": True}]
     
     The structure is an array with a dictionary for each axis. The dictionary has two keys:
-        label: The label of the axis.
-        unit: The unit of the axis.
+    
+    * label: The label of the axis.
+    * unit: The unit of the axis.
     
     :param figureTitle: Title of the figure.
     :param xAxisLabel: Lable of the X-axis.

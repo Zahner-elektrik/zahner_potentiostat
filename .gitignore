@@ -5,3 +5,4 @@ __pycache__
 # Project files
 .project
 .pydevproject
+/sphinxenv/

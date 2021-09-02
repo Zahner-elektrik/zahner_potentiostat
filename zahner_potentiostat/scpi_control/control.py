@@ -63,30 +63,44 @@ class SCPIDevice:
     
     The following primitives are available to compose methods with:
     
-    * Potentiostatic or galvanostatic polarization
-        * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measurePolarization`
-    * Open circuit voltage/potential scan
-        * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureOCV`
-        * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureOCVScan`
-    * Ramps potentiostatic or galvanostatic
-        * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureRampValueInTime`
-        * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureRampValueInScanRate`
-        * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureRampScanRateForTime`
-    * Staircase potentiostatic or galvanostatic
-        * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureIEStairs`
+    **Potentiostatic or galvanostatic polarization**
+    
+    * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measurePolarization`
+    
+    **Open circuit voltage/potential scan**
+    
+    * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureOCV`
+    * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureOCVScan`
+    
+    **Ramps potentiostatic or galvanostatic**
+    
+    * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureRampValueInTime`
+    * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureRampValueInScanRate`
+    * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureRampScanRateForTime`
+    
+    **Staircase potentiostatic or galvanostatic**
+    
+    * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureIEStairs`
     
     
     As an example, the following measurement methods were composed of the primitives:
     
-    * Charge or discharge something
-        * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureCharge`
-        * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureDischarge`
-    * Output potentiostatic or galvanostatic profile as potentiostatic and galvanostatic polarization or ramps
-        * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureProfile`
-    * PITT Potentiostatic Intermittent Titration Technique
-        * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measurePITT`
-    * GITT Galvanostatic Intermittent Titration Technique
-        * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureGITT`
+    **Charge or discharge something**
+    
+    * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureCharge`
+    * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureDischarge`
+    
+    **Output potentiostatic or galvanostatic profile as potentiostatic and galvanostatic polarization or ramps**
+    
+    * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureProfile`
+    
+    **PITT Potentiostatic Intermittent Titration Technique**
+    
+    * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measurePITT`
+    
+    **GITT Galvanostatic Intermittent Titration Technique**
+    
+    * :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureGITT`
         
     
     
@@ -591,7 +605,7 @@ class SCPIDevice:
     def setVoltageRange(self, voltage):
         """ Set the voltage range.
         
-        This command sets the voltage range by an value.
+        This command sets the voltage range by an voltage value.
         
         :SCPI-COMMAND: :SESO:VRNG <value>
         :param voltage: voltage for which the range is to be selected.
@@ -619,7 +633,7 @@ class SCPIDevice:
         This does not work perfectly depending on the measurement object.
         The best option is always to measure with a fixed current range without autoranging.
         
-        Switching the autoranging on and off. Autoranging is only activ in primitves.
+        Autoranging is only activ in primitves.
         If only the potentiostat is switched on, **NO RANGING** is performed and **NO LIMITS** are monitored.
         It is recommended to measure without autoranging if you know the current that will flow.
 
@@ -682,7 +696,7 @@ class SCPIDevice:
         return self._writeCommandToInterfaceAndReadLine(":SESO:CRNG:AUTO:LLIM " + str(index))
     
     def setMaximumShuntIndex(self, index):
-        """ Set the minimum shunt index.
+        """ Set the maximum shunt index.
         
         This command sets the biggest shunt that is used.
         Index starts at 0.
@@ -726,6 +740,7 @@ class SCPIDevice:
         This command sets the time for primitives that require a single time parameter, such as ramps.
         
         The time can be specified as a floating point number, then it is interpreted as seconds.
+        The number should not be much smaller than one second.
         
         Alternatively, the time can also be specified as a string.
         Then you have s, m and min and h as time unit available.
@@ -769,7 +784,7 @@ class SCPIDevice:
         return self._writeCommandToInterfaceAndReadLine(":PARA:TMAX " + str(value))
         
     def setMinimumTimeParameter(self, value):
-        """ Set the maximum time parameter.
+        """ Set the minimum time parameter.
         
         Parameters for primitives that require a minimum time.
         Enter the parameter as for :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.setTimeParameter`.
@@ -902,6 +917,23 @@ class SCPIDevice:
         :rtype: string
         """
         return self._writeCommandToInterfaceAndReadLine(":SESO:FILT " + str(frequency))
+     
+    def setParameterLimitCheckToleranceTime(self, time):
+        """ Setting the time for which operation outside the limits is allowed.
+        
+        By default this parameter is 0.
+        It will be aborted at the latest at the next integer multiple of the sampling period duration.
+        For this time, it is allowed to exceed or fall below the functional parameter current and voltage limits.
+        
+        Enter the parameter as for :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.setTimeParameter`.
+        
+        :SCPI-COMMAND: :PARA:UILT <value>
+        :param state: The time in seconds.
+        :returns: The response string from the device.
+        :rtype: string
+        """
+        time = self._processTimeInput(time)
+        return self._writeCommandToInterfaceAndReadLine(":PARA:UILT " + str(time))
     
     def setMinMaxVoltageParameterCheckEnabled(self, state=True):
         """ Switch voltage check on or off.
@@ -911,7 +943,8 @@ class SCPIDevice:
         When switched on, the voltage is checked in galvanostatic primitives, such as ramps or galvanostatic polarization.
         When the limit is reached, it continues to the next primitive and the state of the device is ok and it has no error.
         
-        This can be used, for example, to wait until the current is only as small as required (settling process).
+        This can be used, for example, to apply a constant current until a voltage is reached.
+        This is used in the method :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureCharge`.
         
         :SCPI-COMMAND: :PARA:ULIM:STAT <ON|OFF>
         :param state: The state of check. True means turned on.
@@ -929,12 +962,11 @@ class SCPIDevice:
         
         The current is absolute with sign.
         
-        When switched on, the current is checked in potentiostatic primitives, such as ramps or polarisation.
+        When switched on, the current is checked in potentiostatic primitives, such as ramps or polarization.
         When the limit is reached, it continues to the next primitive and the state of the device is
         ok and it has no error.
         
-        This can be used, for example, to apply a constant current until a voltage is reached.
-        This is used in the method :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureCharge`.
+        This can be used, for example, to wait until the voltage is only as small as required (settling process).
         
         :SCPI-COMMAND: :PARA:ILIM:STAT <ON|OFF>
         :param state: The state of check. True means turned on.
@@ -1010,7 +1042,24 @@ class SCPIDevice:
         :rtype: string
         """
         return self._writeCommandToInterfaceAndReadLine(":PARA:ILIM:MIN " + str(value))
+     
+    def setGlobalLimitCheckToleranceTime(self, time):
+        """ Setting the time for which operation outside the limits is allowed.
         
+        By default this parameter is 0.
+        It will be aborted at the latest at the next integer multiple of the sampling period duration.
+        For this time, it is allowed to exceed or fall below the global current and voltage limits.
+        
+        Enter the parameter as for :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.setTimeParameter`.
+        
+        :SCPI-COMMAND: :SESO:UILT <value>
+        :param state: The time in seconds.
+        :returns: The response string from the device.
+        :rtype: string
+        """
+        time = self._processTimeInput(time)
+        return self._writeCommandToInterfaceAndReadLine(":SESO:UILT " + str(time))
+       
     def setGlobalVoltageCheckEnabled(self, state=True):
         """ Switch global voltage check on or off.
         
@@ -1206,7 +1255,7 @@ class SCPIDevice:
     def setMaximumCharge(self, value):
         """ Set the maximum charge parameter for primitives.
         
-        The monitoring is switched on, the primitive is successfully aborted when
+        If the monitoring is switched on, the primitive is successfully aborted when
         the maximum charge is exceeded or the minimum charge is undershot.
         It returns with the response ok.
                 
@@ -1220,7 +1269,7 @@ class SCPIDevice:
     def setMinimumCharge(self, value):
         """ Set the minimum charge parameter for primitives.
         
-        The monitoring is switched on, the primitive is successfully aborted when
+        If the monitoring is switched on, the primitive is successfully aborted when
         the maximum charge is exceeded or the minimum charge is undershot.
         It returns with the response ok.
                 
@@ -1315,7 +1364,7 @@ class SCPIDevice:
         return self._writeCommandToInterfaceAndReadLine(":MEAS:RMPT?")
         
     def measureRampValueInScanRate(self, targetValue=None, scanrate=None):
-        """ Measuring a ramp to a target with a scanrate.
+        """ Measuring a ramp to a target value with a scanrate.
         
         Potentiostatic or galvanostatic ramps are possible. With these ramps, the device selects the
         step size as small as possible.
@@ -1421,7 +1470,7 @@ class SCPIDevice:
         return self._writeCommandToInterfaceAndReadLine(":MEAS:RMPV?")
         
     def measurePolarization(self):
-        """ POGA - Measurement of a potentiostatic or galvanostatic polarisation.
+        """ POGA - Measurement of a potentiostatic or galvanostatic polarization.
         
         This primitive outputs constant current or constant voltage for a maximum time, depending on
         what has been set.
@@ -1468,13 +1517,9 @@ class SCPIDevice:
         
     def measureOCVScan(self):
         """ Measurement of open circuit voltage over time
-        
-        This primitive outputs constant current or constant voltage for a maximum time, depending on
-        what has been set.
 
-        However, the primitive can be aborted prematurely if the complementary quantity, e.g. the
-        current in potentiostatic operation, exceeds a specified maximum current or falls below a
-        minimum current.
+        However, the primitive can be aborted prematurely if the voltage in potentiostatic operation,
+        exceeds a  maximum or falls below a minimum.
 
         Likewise, the primitive can be aborted prematurely when the change of the voltage per time
         has fallen below a set value. For the abortion on a change, one can still set a minimum
@@ -1520,7 +1565,7 @@ class SCPIDevice:
         This primitive outputs a voltage or current staircase from the current current or voltage
         value to a target value.
         
-        By default, only one measured value is recorded at the end of the stage. The duration and
+        By default, only one measured value is recorded at the end of the step. The duration and
         size of the step can be set. As with polarization, change tolerances and a minimum time after
         which the next step is continued can also be set.
 

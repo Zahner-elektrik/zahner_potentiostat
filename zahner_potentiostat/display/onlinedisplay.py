@@ -114,26 +114,30 @@ class OnlineDisplay(object):
     by passing a dictionary. All parameters from the two following examples must be passed.
     With x/yTrackName the name of the data track is passed, which is to be displayed on the axis.
     
-    displayConfiguration = {
-        "figureTitle":"My Custom Online Display",
-        "xAxisLabel":"Time",
-        "xAxisUnit":"s",
-        "xTrackName":TrackTypes.TIME.toString(),
-        "yAxis":[
-        {"label": "Cell Potential", "unit": "V", "trackName":TrackTypes.VOLTAGE.toString()},
-        {"label": "Cell Current", "unit": "A", "trackName":TrackTypes.CURRENT.toString()}
-        ]}
+    .. code-block:: python
+        
+        displayConfiguration = {
+            "figureTitle":"My Custom Online Display",
+            "xAxisLabel":"Time",
+            "xAxisUnit":"s",
+            "xTrackName":TrackTypes.TIME.toString(),
+            "yAxis":[
+            {"label": "Cell Potential", "unit": "V", "trackName":TrackTypes.VOLTAGE.toString()},
+            {"label": "Cell Current", "unit": "A", "trackName":TrackTypes.CURRENT.toString()}
+            ]}
     
     or
     
-    displayConfiguration = {
-        "figureTitle":"Online Display",
-        "xAxisLabel":"Potential",
-        "xAxisUnit":"V",
-        "xTrackName":TrackTypes.VOLTAGE.toString(),
-        "yAxis":[
-        {"label": "Current", "unit": "A", "name": "Current", "log": True, "trackName":TrackTypes.CURRENT.toString()}
-        ]}
+    .. code-block:: python
+        
+        displayConfiguration = {
+            "figureTitle":"Online Display",
+            "xAxisLabel":"Potential",
+            "xAxisUnit":"V",
+            "xTrackName":TrackTypes.VOLTAGE.toString(),
+            "yAxis":[
+            {"label": "Current", "unit": "A", "name": "Current", "log": True, "trackName":TrackTypes.CURRENT.toString()}
+            ]}
     
 
     
