@@ -75,6 +75,15 @@ class PlottingProcess:
                 else:
                     self._display.clearData()
                     self._display.addData(command[0], command[1])
+                
+                while self._pipe.poll() == True:
+                    #flush everything
+                    command = self._pipe.recv()
+                    if command is None:
+                        self.terminate()
+                        return
+                    else:
+                        continue
 
     def __call__(self, pipe, displayConfiguration):
         """ Call method implementation.
