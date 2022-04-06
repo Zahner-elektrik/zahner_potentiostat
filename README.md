@@ -1,11 +1,11 @@
 # zahner_potentiostat
 
-zahner_potentiostat is a library to control external [Zahner Potentiostats](http://zahner.de/products/external-potentiostats.html) like **PP212, PP222, PP242 or a XPOT2**.
+zahner_potentiostat is a library to control external [Zahner Potentiostats](https://zahner.de/products#external-potentiostats) like **PP212, PP222, PP242, XPOT2 or EL1002**.
 
 It was developed to **easily integrate** external Zahner Potentiostats into Python scripts for more **complex measurement** tasks and for **automation purposes**.
 
 The control concept is that there are different primitives which can be combined for different electrochemical measurement methods.  
-These primitives can all be configured differently to match the application. In the documentation in the respective function all possible configuration setter methods are listed. The complete documentation of the functions can be found on the [API documentation website](https://doc.zahner.de/zahner_potentiostat/index.html).  
+These primitives can all be configured differently to match the application. In the documentation in the respective function all possible configuration setter methods are listed. The complete documentation of the functions can be found on the [API documentation website](https://doc.zahner.de/zahner_potentiostat/).  
 
 **The following [primitives](https://en.wikipedia.org/wiki/Language_primitive) are available to compose methods with:**  
 * Potentiostatic or galvanostatic polarization  

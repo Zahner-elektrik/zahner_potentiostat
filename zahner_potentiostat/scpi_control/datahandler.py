@@ -4,7 +4,7 @@
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
  /___/\_,_/_//_/_//_/\__/_/      \__/_/\__/_/\_\\__/_/ /_/_/\_\
 
-Copyright 2021 ZAHNER-elektrik I. Zahner-Schiller GmbH & Co. KG
+Copyright 2022 Zahner-Elektrik GmbH & Co. KG
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,6 @@ THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from zahner_potentiostat.display.dcplot import DCPlot
 from .datareceiver import TrackTypes
-
 
 class DataManager:
     """
@@ -87,14 +86,16 @@ class DataManager:
         :param filename: The path, filename and filetype of the file if it should be saved.
         """
         data = self._receiver.getCompletePoints()
+        
         timeKey = TrackTypes.TIME.toString()
         voltageKey = TrackTypes.VOLTAGE.toString()
         currentKey = TrackTypes.CURRENT.toString()
         
-        fileText = "Time [s];\tVoltage [V];\tCurrent [A]\n"
-        
-        for i in range(self._receiver.getNumberOfCompletePoints()):
-            line = "{:+.16E};\t{:+.16E};\t{:+.16E}\n".format(data[timeKey][i], data[voltageKey][i], data[currentKey][i])
-            fileText += line
         with open(filename, 'wb') as file:
-            file.write(fileText.encode("utf-8"))
+            file.write("Time [s];\tVoltage [V];\tCurrent [A]\n".encode("utf-8"))
+            for i in range(len(data[timeKey])):
+                line = "{:+.16E};\t{:+.16E};\t{:+.16E}\n".format(data[timeKey][i], data[voltageKey][i], data[currentKey][i])
+                file.write(line.encode("utf-8"))
+        
+        return
+    

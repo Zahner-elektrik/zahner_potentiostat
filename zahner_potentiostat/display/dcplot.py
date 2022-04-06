@@ -4,7 +4,7 @@
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
  /___/\_,_/_//_/_//_/\__/_/      \__/_/\__/_/\_\\__/_/ /_/_/\_\
 
-Copyright 2021 ZAHNER-elektrik I. Zahner-Schiller GmbH & Co. KG
+Copyright 2022 Zahner-Elektrik GmbH & Co. KG
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the "Software"),
@@ -83,8 +83,7 @@ class DCPlot(object):
         Add a close event to easily check if the window is still open.
         """
         self.fig.canvas.mpl_connect('close_event', self._closeEvent)
-        plt.ion()
-        
+                
         i = 0
         self.line = []
         self.allAxes = [self.axis]
@@ -136,15 +135,15 @@ class DCPlot(object):
             plt.legend(handles=self.line, loc="best")
         
         if data != None:
-            self.addData(data[0], data[1])
+            self.addData(data[0], data[1], redraw = False)
         
-        plt.show()
+        plt.figure(self.fig)
         plt.tight_layout()
-        plt.draw()
-        plt.pause(1e-3)
+        self.fig.canvas.draw()
+        plt.pause(100e-3)
         return
         
-    def addData(self, xData, yDatas):
+    def addData(self, xData, yDatas, redraw = True):
         """ Append the data of the plot.
         
         This method is used to append data to the plot.
@@ -157,23 +156,22 @@ class DCPlot(object):
             yDatas = [[0,1,2,3],[0,1,2,3],...]
         
         :param xData: Array with points for the X-axis.
-        :param yData: Array with Arrys for each Y-axis.
+        :param yDatas: Array with arrys for each Y-axis.
         """
-        for data in xData:
-            self.xData.append(data)
+        self.xData.extend(xData)
             
         for i in range(len(self.yData)):
             absRequired = False
             if "log" in self.yAxisConfig[i] and self.yAxisConfig[i]["log"] == True:
                     absRequired = True
             if absRequired == False:
-                self.yData[i] = yDatas[i]
+                self.yData[i].extend(yDatas[i])
             else:
-                self.yData[i] = np.abs(yDatas[i])
+                self.yData[i].extend(np.abs(yDatas[i]))
                 
             self.line[i].set_ydata(self.yData[i])
             self.line[i].set_xdata(self.xData)
-            
+        
         for ax in self.allAxes:
             ax.relim(visible_only=True)
             ax.autoscale_view(True, True, True)
@@ -181,9 +179,12 @@ class DCPlot(object):
         if len(self.xData) > 0:
             if min(self.xData) != max(self.xData):
                 self.axis.set_xlim(min(self.xData), max(self.xData))
-        plt.tight_layout()
-        plt.draw()
-        plt.pause(1e-3)
+                
+        if redraw:
+            plt.figure(self.fig)
+            plt.tight_layout()
+            self.fig.canvas.draw()
+            plt.pause(1e-3)
         return
         
     def pause(self, time):
@@ -193,6 +194,7 @@ class DCPlot(object):
         
         :param time: Pause in seconds.
         """
+        plt.figure(self.fig)
         plt.pause(time)
         return
         

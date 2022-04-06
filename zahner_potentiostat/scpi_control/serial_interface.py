@@ -4,7 +4,7 @@
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
  /___/\_,_/_//_/_//_/\__/_/      \__/_/\__/_/\_\\__/_/ /_/_/\_\
 
-Copyright 2021 ZAHNER-elektrik I. Zahner-Schiller GmbH & Co. KG
+Copyright 2022 Zahner-Elektrik GmbH & Co. KG
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the "Software"),
@@ -32,12 +32,13 @@ import serial
 from enum import Enum
 import queue
 from serial.serialutil import SerialException
+import time
 
 """
 With DEBUG = True it is switched on that log strings are stored.
 Then all commands that are sent and responses that are received are saved with timestamp.
 """
-DEBUG = True
+DEBUG = False
 
 
 class CommandType(Enum):
@@ -196,6 +197,7 @@ class SerialInterface(metaclass=ABCMeta):
             interrupt the operations.
             """
             self._receiving_worker_is_running = False
+            time.sleep(0.1)
             self.serialConnection.cancel_read()
             self.serialConnection.cancel_write()
             self.serialConnection.close()
@@ -232,8 +234,8 @@ class SerialCommandInterface(SerialInterface):
         self.waiting[CommandType.CONTROL.value] = None
         
         self.queues = dict()
-        self.queues[CommandType.COMMAND.value] = queue.Queue()
-        self.queues[CommandType.CONTROL.value] = queue.Queue()
+        self.queues[CommandType.COMMAND.value] = queue.SimpleQueue()
+        self.queues[CommandType.CONTROL.value] = queue.SimpleQueue()
         
         super().__init__(serialName)
         return
@@ -356,8 +358,9 @@ class SerialDataInterface(SerialInterface):
     def __init__(self, serialName):
         """ Constructor
         """
-        self.queue = queue.Queue()
+        self.queue = queue.SimpleQueue()
         super().__init__(serialName)
+        return
         
     def _telegramListenerJob(self):
         """ Method in which the receive thread runs.
@@ -365,6 +368,7 @@ class SerialDataInterface(SerialInterface):
         while self._receiving_worker_is_running:
             try:
                 receivedBytes = self.serialConnection.read_all()
+                               
                 for byte in receivedBytes:
                     self.queue.put(byte)
             except:

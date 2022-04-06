@@ -4,7 +4,7 @@
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
  /___/\_,_/_//_/_//_/\__/_/      \__/_/\__/_/\_\\__/_/ /_/_/\_\
 
-Copyright 2021 ZAHNER-elektrik I. Zahner-Schiller GmbH & Co. KG
+Copyright 2022 Zahner-Elektrik GmbH & Co. KG
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the "Software"),
@@ -28,6 +28,8 @@ import struct
 from threading import Thread, Semaphore
 from .error import ZahnerDataProtocolError
 from enum import Enum
+import copy
+import time
 
 
 class PacketTypes(Enum):
@@ -144,8 +146,8 @@ class DataReceiver:
                     
         """
         self._dataInterface = dataInterface
-        self._completeData = []
-        self._onlineData = []
+        self._completeData = dict()
+        self._onlineData = dict()
         self._currentTrackTypes = []
         self._lastHeaderSate = None
         self._lastPacketType = None
@@ -185,7 +187,10 @@ class DataReceiver:
         
         :returns: Number of measurement points.
         """
-        return len(self._completeData)
+        if len(list(self._completeData.keys())) == 0:
+            return 0
+        else:
+            return min([len(self._completeData[key]) for key in self._completeData.keys()])
     
     def getNumberOfOnlinePoints(self):
         """ Get the number of received live points.
@@ -195,7 +200,10 @@ class DataReceiver:
         
         :returns: Number of measurement points.
         """
-        return len(self._onlineData)
+        if len(list(self._onlineData.keys())) == 0:
+            return 0
+        else:
+            return min([len(self._onlineData[key]) for key in self._onlineData.keys()])
     
     def getTrackTypeList(self):
         """ List of track types that are currently being processed.
@@ -215,7 +223,6 @@ class DataReceiver:
         :returns: An array with the data for the track. Each returned data point consists of a
             dictionary with the track names.
         """
-        retval = []
         key = None
         if isinstance(track, TrackTypes):
             key = track.value
@@ -223,13 +230,7 @@ class DataReceiver:
             key = TrackTypes.numberToTrack(track).toString()
         else:
             key = track
-        
-            if maxIndex == None:
-                maxIndex = self.getNumberOfCompletePoints()
-            for i in range(minIndex, maxIndex, 1):
-                pointDict = self._completeData[i]
-                retval.append(pointDict[key])
-        return retval
+        return self.getCompletePoints(minIndex, maxIndex)[key]
     
     def getOnlineTrack(self, track , minIndex=0, maxIndex=None):
         """ Retrieves points to a online/live data track.
@@ -240,7 +241,6 @@ class DataReceiver:
         :returns: An array with the data for the track. Each returned data point consists of a
             dictionary with the track names.
         """
-        retval = []
         key = None
         if isinstance(track, TrackTypes):
             key = track.value
@@ -248,45 +248,50 @@ class DataReceiver:
             key = TrackTypes.numberToTrack(track).toString()
         else:
             key = track
-        if maxIndex == None:
-            maxIndex = self.getNumberOfCompletePoints()
-        for i in range(minIndex, maxIndex, 1):
-            pointDict = self._onlineData[i]
-            retval.append(pointDict[key])
-        return retval
+        return self.getOnlinePoints(minIndex, maxIndex)[key]
     
     def getCompletePoints(self, minIndex=0, maxIndex=None):
         """ Retrieves points to all data tracks for completed data.
         
         :param minIndex: By default 0, this means from 0.
-        :param maxIndex: By default 0, this means to the end.
+        :param maxIndex: By default None, this means to the end.
         :returns: An array with the data for the track. Each returned data point consists of a
             dictionary with the track names.
         """
-        retval = dict()
         with self._completeDataSemaphore:
-            if maxIndex == None:
-                maxIndex = self.getNumberOfCompletePoints()
-            for track in self._currentTrackTypes:
-                data = self.getCompleteTrack(track, minIndex, maxIndex)
-                retval[track] = data
+            retval = copy.deepcopy(self._completeData)
+        if maxIndex == None:
+            maxIndex = min([len(retval[key]) for key in retval.keys()])
+        
+        for track in retval.keys():
+            if maxIndex == 0:
+                retval[track] = []
+            elif maxIndex >= len(retval[track]):
+                pass  
+            else:
+                retval[track] = retval[track][minIndex:maxIndex]
         return retval
     
     def getOnlinePoints(self, minIndex=0, maxIndex=None):
         """ Retrieves points to all data tracks for online/live data.
         
         :param minIndex: By default 0, this means from 0.
-        :param maxIndex: By default 0, this means to the end.
+        :param maxIndex: By default None, this means to the end.
         :returns: An array with the data for the track. Each returned data point consists of a
             dictionary with the track names.
         """
-        retval = dict()
         with self._onlineDataSemaphore:
-            if maxIndex == None:
-                maxIndex = self.getNumberOfOnlinePoints()
-            for track in self._currentTrackTypes:
-                data = self.getOnlineTrack(track, minIndex, maxIndex)
-                retval[track] = data
+            retval = copy.deepcopy(self._onlineData)
+        if maxIndex == None:
+            maxIndex = min([len(retval[key]) for key in retval.keys()])
+        
+        for track in retval.keys():
+            if maxIndex == 0:
+                retval[track] = []
+            elif maxIndex >= len(retval[track]):
+                pass  
+            else:
+                retval[track] = retval[track][minIndex:maxIndex]
         return retval
     
     def getCompleteAndOnlinePoints(self):
@@ -295,8 +300,8 @@ class DataReceiver:
         :returns: An array with the data for the track. Each returned data point consists of a
             dictionary with the track names.
         """
-        complete = self.getCompletePoints()
-        online = self.getOnlinePoints()
+        complete = copy.deepcopy(self.getCompletePoints())
+        online = copy.deepcopy(self.getOnlinePoints())
         for key in complete.keys():
             dataFromKey = online[key]
             for data in dataFromKey:
@@ -307,7 +312,11 @@ class DataReceiver:
         """ Delete the received complete points.
         """
         with self._completeDataSemaphore:
-            self._completeData = []
+            self._completeData = dict()
+            self._onlineData = dict()
+            for key in self._currentTrackTypes:
+                self._completeData[key] = []
+                self._onlineData[key] = []
             self._lastMaximumTime = 0
         return
     
@@ -325,6 +334,7 @@ class DataReceiver:
                 packetType = self._readU64()
                 length = self._readU64()
                 
+                # print(f"{time.time_ns()/1000000:>20.4f}\tpacketType: {packetType:X}\tlength: {length}")
                 if packetType == PacketTypes.DATALIGHT.value:
                     self._processDataLight(length)
                 elif packetType == PacketTypes.DATALIGHTBULK.value:
@@ -338,8 +348,9 @@ class DataReceiver:
                 else:
                     packetError = True
                 self._lastPacketType = packetType
-            except:
-                self._receiving_worker_is_running = False
+            except Exception as e:
+                if self._receiving_worker_is_running == True:
+                    raise e
             if packetError:
                 raise ZahnerDataProtocolError("Unknown Packet: " + str(packetType))
         return
@@ -353,19 +364,22 @@ class DataReceiver:
             dataPacket = dict()
             for track in self._currentTrackTypes:
                 dataPacket[track] = self._readF64()
-                
-            if TrackTypes.TIME.toString() in dataPacket.keys():
+            
+            timeTrackName = TrackTypes.TIME.toString()
+            if timeTrackName in dataPacket.keys():
                 """
                 Correction of the time axis for successive primitives,
                 so that time continues to run and does not start at 0 for each primitive.
                 """
-                time = dataPacket[TrackTypes.TIME.toString()]
+                time = dataPacket[timeTrackName]
                 if time > self._maximumTimeInCycle:
                     self._maximumTimeInCycle = time
-                dataPacket[TrackTypes.TIME.toString()] += self._lastMaximumTime
+                dataPacket[timeTrackName] += self._lastMaximumTime
             else:
                 raise ZahnerDataProtocolError("No Time track")
-            self._onlineData.append(dataPacket)
+            
+            for track in self._currentTrackTypes:
+                self._onlineData[track].append(dataPacket[track])
         else:
             raise ZahnerDataProtocolError("numberOfTracks != len(self._currentTrackTypes)")
         return
@@ -405,7 +419,10 @@ class DataReceiver:
         :param trackType:
         :type trackType: :class:`~zahner_potentiostat.scpi_control.datareceiver.TrackTypes`
         """
-        self._onlineData = sorted(self._onlineData, key=lambda datapoint : datapoint[trackType])
+        numberToSort = list(self._onlineData.keys()).index(trackType)
+        sorteddata = [list(x) for x in sorted(zip(*self._onlineData.values()), key=lambda values: values[numberToSort])]
+        self._onlineData = {key : [row[list(self._onlineData.keys()).index(key)] for row in sorteddata] for key in self._onlineData.keys()}
+        return
     
     def _processDataLightBulkAppendum(self, length):
         """ Process packet type DataLightBulkAppendum.
@@ -439,6 +456,7 @@ class DataReceiver:
         measurementFlags = self._readString()
         measurementName = self._readString()
         
+        # print(f"{time.time_ns()/1000000:>20.4f}\theaderstate: {measurementState:X}")
         if measurementState == HeaderState.FINISHING.value:
             if self._lastPacketType == PacketTypes.MEASUREMENTHEADER.value and self._lastHeaderSate == HeaderState.DONE.value:
                 self._onlineDataToCompleteData()
@@ -454,7 +472,7 @@ class DataReceiver:
         """ Process packet type MeasurementTracks
         """
         numberOfTracks = self._readU64()
-        self._currentTrackTypes = []
+        newTrackTypes = []
         
         for i in range(numberOfTracks):
             trackType = self._readU64()
@@ -462,7 +480,18 @@ class DataReceiver:
             unit = self._readString()
             flags = self._readString()
             
-            self._currentTrackTypes.append(TrackTypes.numberToTrack(trackType).toString())
+            newTrackTypes.append(TrackTypes.numberToTrack(trackType).toString())
+        
+        if len(self._currentTrackTypes) == 0:
+            #empty or deleted
+            self._currentTrackTypes = newTrackTypes
+            for track in newTrackTypes:
+                self._onlineData[track] = []
+                self._completeData[track] = []
+        else:
+            if self._currentTrackTypes != newTrackTypes:
+                #data has to be cleared
+                raise ZahnerDataProtocolError("Primitive track types mismatch.")          
         return
         
     def _readU64(self):
@@ -500,15 +529,16 @@ class DataReceiver:
         """ Clear the received online data.
         """
         with self._onlineDataSemaphore:
-            self._onlineData = []
+            for track in self._currentTrackTypes:
+                self._onlineData[track] = []
         return
         
     def _onlineDataToCompleteData(self):
         """ Transfer online to complete data.
         """
         with self._completeDataSemaphore:
-            for data in self._onlineData:
-                self._completeData.append(data)
+            for track in self._currentTrackTypes:
+                self._completeData[track].extend(self._onlineData[track])
             self._clearOnlineData()
             self._lastMaximumTime += self._maximumTimeInCycle
             self._maximumTimeInCycle = 0

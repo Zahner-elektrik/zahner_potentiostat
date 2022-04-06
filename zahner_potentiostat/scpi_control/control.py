@@ -4,7 +4,7 @@
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
  /___/\_,_/_//_/_//_/\__/_/      \__/_/\__/_/\_\\__/_/ /_/_/\_\
 
-Copyright 2021 ZAHNER-elektrik I. Zahner-Schiller GmbH & Co. KG
+Copyright 2022 Zahner-Elektrik GmbH & Co. KG
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the "Software"),
@@ -1776,6 +1776,7 @@ class SCPIDevice:
         self.setToleranceBreakEnabled(False)
         self.setCoupling("pot")
         self.setVoltageParameterRelation(RELATION.ZERO)
+        self.setParameterLimitCheckToleranceTime(0.1)
         
         currentVoltage = self.measureOCV()
         """
@@ -1841,6 +1842,8 @@ class SCPIDevice:
         self.setToleranceBreakEnabled(False)
         self.setCoupling("gal")
         self.setCurrentParameter(abs(current))
+        self.setParameterLimitCheckToleranceTime(0.1)
+        self.setGlobalLimitCheckToleranceTime(0.1)
         
         """
         The errors are needed by this function and are processed.

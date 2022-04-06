@@ -4,7 +4,7 @@
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
  /___/\_,_/_//_/_//_/\__/_/      \__/_/\__/_/\_\\__/_/ /_/_/\_\
 
-Copyright 2021 ZAHNER-elektrik I. Zahner-Schiller GmbH & Co. KG
+Copyright 2022 Zahner-Elektrik GmbH & Co. KG
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the "Software"),
@@ -29,7 +29,20 @@ from zahner_potentiostat.scpi_control.datareceiver import TrackTypes
 import multiprocessing
 import threading
 import time
+from enum import Enum
 
+
+class OnlineDisplayStatus(Enum):
+    """ Online Display Status
+    """
+    RENDERED = 0
+    CLOSED = 1
+
+class OnlineDisplayJob(Enum):
+    """ Online Display Status
+    """
+    APPEND = 0
+    CLEAR = 1
 
 class PlottingProcess:
     """ Auxiliary class for displaying the plotting window.
@@ -61,29 +74,30 @@ class PlottingProcess:
         The data is sent to the process with a process pipeline.
         """
         while True:
-            if self._display.isOpen() == False:
-                self.terminate()
-                return
-            
-            if self._pipe.poll() == False:
-                self._display.pause(0.04)
-            else:
-                command = self._pipe.recv()
-                if command is None:
+            try:
+                if self._display.isOpen() == False:
+                    self._pipe.send(OnlineDisplayStatus.CLOSED.value)
                     self.terminate()
                     return
+            
+                if self._pipe.poll() == False:
+                    self._display.pause(0.04)
                 else:
-                    self._display.clearData()
-                    self._display.addData(command[0], command[1])
-                
-                while self._pipe.poll() == True:
-                    #flush everything
                     command = self._pipe.recv()
                     if command is None:
                         self.terminate()
                         return
-                    else:
-                        continue
+                    elif command["job"] == OnlineDisplayJob.APPEND.value :
+                        self._display.addData(command["data"][0], command["data"][1])
+                    elif command["job"] == OnlineDisplayJob.CLEAR.value :
+                        self._display.clearPlot()
+                    self._pipe.send(OnlineDisplayStatus.RENDERED.value)
+            except Exception as e:
+                raise e
+                print("Error online display receiver.")
+                print(f"Exception message: {e}")
+                self.terminate()
+                return
 
     def __call__(self, pipe, displayConfiguration):
         """ Call method implementation.
@@ -162,6 +176,9 @@ class OnlineDisplay(object):
         self._processingLoopRunning = True
         self.xTrackName = None
         self.yTrackNames = []
+        self.minSendInterval = 0.1
+        self.lastOnlineMinTimeStamp = 0
+        self.lastOnlineMaxTimeStamp = 0
         
         configuration = {"figureTitle":"Online Display",
                          "xAxisLabel":"Time",
@@ -213,6 +230,16 @@ class OnlineDisplay(object):
         """
         self._processingLoopRunning = False
         return
+    
+    def setMinimumSendInterval(self, interval):
+        """ Set the minimum interval for sending data.
+        
+        Only after this time is it checked again whether data can be sent to the online display.
+        
+        :param interval: Time in s.
+        """
+        self.minSendInterval = interval
+        return
         
     def processingLoop(self):
         """ Measurement data processing thread.
@@ -222,19 +249,68 @@ class OnlineDisplay(object):
         """
         lastNumberOfPoints = 0
         while self._processingLoopRunning == True:
-            number = self._dataReveiver.getNumberOfCompleteAndOnlinePoints()
+            
+            number = self._dataReveiver.getNumberOfOnlinePoints()
+            
             if lastNumberOfPoints != number:
                 lastNumberOfPoints = number
                 
                 if number > 0:
-                    data = self._dataReveiver.getCompleteAndOnlinePoints()
-                    self._sendDataToProcess(data)
+                    data = self._dataReveiver.getOnlinePoints()
+                    
+                    try:
+                        if not self.plot_pipe.closed:
+                            if self._replyFromProcessAvailable():
+                                #delete old replys
+                                reply = self._waitForReplyFromProcess()
+                                if reply is OnlineDisplayStatus.CLOSED.value:
+                                    print("Online display closed.")
+                                    self._processingLoopRunning = False
+                                    return
+                            
+                            minTime = min(data[TrackTypes.TIME.toString()])
+                            maxTime = max(data[TrackTypes.TIME.toString()])
+                            
+                            if maxTime <= self.lastOnlineMaxTimeStamp:
+                                # delete online display data
+                                self._sendDataToProcess(OnlineDisplayJob.CLEAR.value)
+                                reply = self._waitForReplyFromProcess()
+                                if reply is not OnlineDisplayStatus.RENDERED.value:
+                                    print("Error online display answer.")
+                                    self._processingLoopRunning = False
+                                    return
+                            else:
+                                # remove already existing data
+                                dataFromIndex = next(x[0] for x in enumerate(data[TrackTypes.TIME.toString()]) if x[1] > self.lastOnlineMaxTimeStamp)
+                                for key in data.keys():
+                                    data[key] = data[key][dataFromIndex:]
+                            
+                            self._sendDataToProcess(OnlineDisplayJob.APPEND.value, data)
+                            reply = self._waitForReplyFromProcess()
+                            
+                            if reply is not OnlineDisplayStatus.RENDERED.value:
+                                print("Error online display answer.")
+                                self._processingLoopRunning = False
+                                return
+                                                       
+                            self.lastOnlineMinTimeStamp = minTime
+                            self.lastOnlineMaxTimeStamp = maxTime
+                        else:
+                            self._processingLoopRunning = False                                                        
+                                
+                    except Exception as e:
+                        print("Error online display transmitter.")
+                        print(f"Exception message: {e}")
+                        self._processingLoopRunning = False
+                        return
+                    
+                    time.sleep(self.minSendInterval)
                     
             else:
-                time.sleep(0.02)
+                time.sleep(self.minSendInterval)
         return
     
-    def _sendDataToProcess(self, data):
+    def _sendDataToProcess(self, job, data = None):
         """ Sending data to the process via the pipe.
         
         This method reads the data from the DataReceiver object and assembles it so that it can be
@@ -242,19 +318,17 @@ class OnlineDisplay(object):
         
         :param data: The data to plot. data = [xData, yDatas]. Like :func:`~zahner_potentiostat.display.dcplot.DCPlot.addData`.
         """
-        x = data[self.xTrackName]
-        y = []
-        for trackName in self.yTrackNames:
-            y.append(data[trackName])
-        
-        if self.plot_pipe.closed:
-            self._processingLoopRunning = False
+        if data is None:
+            self.plot_pipe.send({"job" : job, "data" : data})
         else:
-            try:
-                self.plot_pipe.send([x, y])
-            except:
-                self._processingLoopRunning = False
+            self.plot_pipe.send({"job" : job, "data" : [data[self.xTrackName], [data[y] for y in self.yTrackNames]]})
         return
+    
+    def _waitForReplyFromProcess(self):
+        return self.plot_pipe.recv()
+    
+    def _replyFromProcessAvailable(self):
+        return self.plot_pipe.poll()
             
     def close(self):
         """ Close the online display.
