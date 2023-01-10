@@ -24,6 +24,8 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
 THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
+from typing import Optional, Union
+
 
 class ZahnerError(Exception):
     """Base class for inheritance for Zahner errors.
@@ -31,9 +33,23 @@ class ZahnerError(Exception):
     This class is used to identify Zahnner errors all other Zahnner errors are derived from this class.
     """
 
-    def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
+    _error_code: int
+    _error_message: Optional[str]
+
+    def __init__(
+        self, error_code: Union[int, str], error_message: Optional[str] = None
+    ):
+        if isinstance(error_code, str):
+            error_code = (
+                error_code.strip()
+            )  # passed error code strings sometimes end with a trailing '\n'
+        self._error_code = error_code
+        self._error_message = error_message
+        super().__init__(
+            "error code "
+            + str(self._error_code)
+            + (": " + self._error_message if self._error_message is not None else "")
+        )
 
 
 class ZahnerConnectionError(ZahnerError):
@@ -43,9 +59,8 @@ class ZahnerConnectionError(ZahnerError):
     attempt is made to connect to a device that does not exist.
     """
 
-    def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
+    def __init__(self, error_code: Union[int, str]):
+        super().__init__(error_code, None)
 
 
 class ZahnerDataProtocolError(ZahnerError):
@@ -54,29 +69,41 @@ class ZahnerDataProtocolError(ZahnerError):
     If this exception is thrown, the device and python must be restarted because a fatal error has occurred.
     """
 
-    def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
+    def __init__(self, error_code: Union[int, str]):
+        super().__init__(error_code, None)
 
 
 class ZahnerSCPIError(ZahnerError):
-    """Exception which can be thrown if the device responds to a command with an error.
+    """
+    exception which can be thrown if the device responds to a command with an error
 
-    ========  ========
-    Number    Description
-    ========  ========
-    100       Value is out of range.
-    27        The command does not exist.
-    1003      Setup global limit reached.
-    1004      Value is out of the limited range.
-    1005      The measurement was aborted. The status has to be cleared with \*CLS.
-    1006      The command is not executed because of an previous error or manual abort. (1003, 1005)
-    1007      An error occurred during calibration. The device may be faulty.
-    42        Undefinded error.
-    1000      This command has not been implemented yet. But is foreseen.
-    ========  ========
+    see static attribute `_message_strings` for possible specializations
     """
 
-    def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
+    _message_strings: dict[int, str] = {
+        100: "value is out of range",
+        27: "command does not exist",
+        1003: "setup global limit reached",
+        1004: "value is out of limited range",
+        1005: "measurement was aborted. The status has to be cleared with \*CLS.",
+        1006: "command is not executed because of an previous error or manual abort. (1003, 1005)",
+        1007: "an error occurred during calibration. The device may be faulty.",
+        42: "undefinded error",
+        1000: "this command has not been implemented yet. But is foreseen.",
+    }
+    """associates an error number with a human-readable error code"""
+
+    def __init__(self, error_code: Union[int, str]):
+        if isinstance(error_code, str):
+            try:
+                error_code = int(error_code.strip())
+            except:
+                pass  # TODO: this is not type-safe
+        super().__init__(
+            error_code,
+            (
+                self._message_strings[self._error_code]
+                if error_code in self._message_strings
+                else "unknown error – maybe upgrade your version of `zahner_potentiostat` package"
+            ),
+        )
