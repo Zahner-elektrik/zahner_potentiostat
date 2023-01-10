@@ -1,4 +1,4 @@
-'''
+"""
   ____       __                        __    __   __      _ __
  /_  / ___ _/ /  ___  ___ ___________ / /__ / /__/ /_____(_) /__
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
@@ -22,7 +22,7 @@ PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIG
 HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
 THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-'''
+"""
 
 import re
 from .HUDDSCOL import *
@@ -30,10 +30,10 @@ from .NYCCCOL import *
 
 
 def readLinesFromProfie(profile):
-    """ Read lines from a file without the header.
-    
+    """Read lines from a file without the header.
+
     This function reads all lines from a file except the first two lines.
-    
+
     :param file: Path to the file.
     :returns: Array with the lines of the file.
     """
@@ -41,38 +41,38 @@ def readLinesFromProfie(profile):
     if "NYCCCO" in profile:
         lines = NYCCCO_profile.split("\n")
     elif "HUDDSCOL" in profile:
-        lines = HUDDSCOL_profile.split("\n")        
+        lines = HUDDSCOL_profile.split("\n")
     return lines
 
-    
+
 def calculatedNormalisedDataForLines(lines):
-    """ Get normalised data for the lines of the file.
-    
+    """Get normalised data for the lines of the file.
+
     This function is intended as an example.
-    
+
     With the help of the function the velocity data of the file are normalized to the absolute value
     of 1 to be able to measure the profile later with a individual current factor.
-    
+
     The parser for the line content is developed as an example for both HUDDSCOL.txt and NYCCCOL.txt.
     The decimal separator is a dot and the column separator is a tab.
-    
+
     The data structure required by the measureProfile() method is returned. The data is structured
     like the following example:
-    
+
     [{"time": 0, "value": 0.1},{"time": 1, "value": 0.4},{"time": 2, "value": 0.3}]
-    
+
     The structure is an array with a dictionary for each step. The dictionary has two keys:
         time: The time point of the value.
         value: The value, what the value is whether voltage, current or other is specified in the
             measureProfile() method.
-    
+
     :param lines: Array with the data lines of the file as string.
     :returns: Explained data structure.
     """
     maxValue = 0
     normalisedData = []
-    seperatorRegex = re.compile(r"([0-9,.]+)[\W]+([0-9,.]+)")   
-    
+    seperatorRegex = re.compile(r"([0-9,.]+)[\W]+([0-9,.]+)")
+
     for line in lines:
         linematch = seperatorRegex.match(line)
         if linematch != None:
@@ -83,7 +83,7 @@ def calculatedNormalisedDataForLines(lines):
                 maxValue = value
             data["value"] = value
             normalisedData.append(data)
-    
+
     for data in normalisedData:
         """
         Normalisation to the biggest Value from -1 to 1.
@@ -92,7 +92,7 @@ def calculatedNormalisedDataForLines(lines):
     return normalisedData
 
 
-def getNormalisedCurrentTableForHUDDSCOL(): 
+def getNormalisedCurrentTableForHUDDSCOL():
     """
     These are NOT correct current cycles they are SPEED CURVES.
 
@@ -100,16 +100,16 @@ def getNormalisedCurrentTableForHUDDSCOL():
     These velocity curves must be converted to current curves or voltage curves depending on the application,
     THIS MUST BE DONE BY THE USER.
     The velocity waveforms were only obtained as an example of waveforms.
-    
+
     Here the path may need to be adjusted.
-    
+
     :returns: Explained data structure.
     """
     lines = readLinesFromProfie("HUDDSCOL")
     normalisedData = calculatedNormalisedDataForLines(lines)
     return normalisedData
-    
-    
+
+
 def getNormalisedCurrentTableForNYCCCOL():
     """
     These are NOT correct current cycles they are SPEED CURVES.
@@ -118,12 +118,11 @@ def getNormalisedCurrentTableForNYCCCOL():
     These velocity curves must be converted to current curves or voltage curves depending on the application,
     THIS MUST BE DONE BY THE USER.
     The velocity waveforms were only obtained as an example of waveforms.
-    
+
     Here the path may need to be adjusted.
-    
+
     :returns: Explained data structure.
     """
     lines = readLinesFromProfie("NYCCCO")
     normalisedData = calculatedNormalisedDataForLines(lines)
     return normalisedData
-    
