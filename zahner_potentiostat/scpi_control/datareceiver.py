@@ -27,6 +27,7 @@ THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 import struct
 from threading import Thread, Semaphore
 from .error import ZahnerDataProtocolError
+from .serial_interface import SerialDataInterface
 from enum import Enum
 import copy
 import time
@@ -144,7 +145,10 @@ class DataReceiver:
     :type dataInterface: :class:`~zahner_potentiostat.scpi_control.serial_interface.SerialDataInterface`
     """
 
-    def __init__(self, dataInterface):
+    _dataInterface: SerialDataInterface
+    # TODO: declare other attributes
+
+    def __init__(self, dataInterface: SerialDataInterface):
         """Constructor"""
         self._dataInterface = dataInterface
         self._completeData = dict()

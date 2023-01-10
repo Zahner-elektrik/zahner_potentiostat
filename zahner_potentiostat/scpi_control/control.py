@@ -25,11 +25,18 @@ THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
 from enum import Enum
+from typing import Optional, Union
 import time
 import re
+import datetime
 
 import numpy
-from .serial_interface import CommandType, DEBUG
+from .serial_interface import (
+    CommandType,
+    DEBUG,
+    SerialCommandInterface,
+    SerialDataInterface,
+)
 from .datareceiver import DataReceiver
 from .error import ZahnerSCPIError
 from builtins import isinstance
@@ -153,14 +160,24 @@ class SCPIDevice:
     :type dataInterface: :class:`~zahner_potentiostat.scpi_control.serial_interface.SerialDataInterface`
     """
 
-    def __init__(self, commandInterface, dataInterface):
+    _commandInterface: SerialCommandInterface
+    """`SerialCommandInterface` object to control the device"""
+    _coupling: COUPLING
+    _raiseOnError: bool
+    _dataReceiver: Optional[DataReceiver]
+
+    def __init__(
+        self,
+        commandInterface: SerialCommandInterface,
+        dataInterface: Optional[SerialDataInterface],
+    ):
         self._commandInterface = commandInterface
         self._coupling = COUPLING.POTENTIOSTATIC
         self._raiseOnError = False
-        if dataInterface != None:
-            self._dataReceiver = DataReceiver(dataInterface)
-        else:
+        if dataInterface is None:
             self._dataReceiver = None
+        else:
+            self._dataReceiver = DataReceiver(dataInterface)
         return
 
     """
@@ -176,7 +193,7 @@ class SCPIDevice:
         if self._dataReceiver != None:
             self._dataReceiver.stop()
 
-    def getDataReceiver(self):
+    def getDataReceiver(self) -> DataReceiver:
         """Get the DataReceiver object.
 
         The DataReceiver type object processes the data from the binary comport.
@@ -185,7 +202,7 @@ class SCPIDevice:
         """
         return self._dataReceiver
 
-    def setRaiseOnErrorEnabled(self, enabled=True):
+    def setRaiseOnErrorEnabled(self, enabled: bool = True):
         """Setting the error handling of the control object.
 
         If False, then strings from the device containing error are thrown as exceptions.
@@ -194,7 +211,7 @@ class SCPIDevice:
         """
         self._raiseOnError = enabled
 
-    def getRaiseOnErrorEnabled(self):
+    def getRaiseOnErrorEnabled(self) -> bool:
         """Read the error handling of the control object.
 
         :returns: True if errors trigger an exception.
@@ -205,7 +222,7 @@ class SCPIDevice:
     Methods that talk to the device via SCPI.
     """
 
-    def IDN(self):
+    def IDN(self) -> str:
         """Read informations about the device.
 
         The device uses the `SCPI <https://de.wikipedia.org/wiki/Standard_Commands_for_Programmable_Instruments>`_ protocol on the interface.
@@ -222,7 +239,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine("*IDN?")
 
-    def readDeviceInformations(self):
+    def readDeviceInformations(self) -> str:
         """Read informations about the device.
 
         The device uses the `SCPI <https://de.wikipedia.org/wiki/Standard_Commands_for_Programmable_Instruments>`_ protocol on the interface.
@@ -248,7 +265,7 @@ class SCPIDevice:
         self.DiagnosticState = 0
         return self.IDN()
 
-    def clearState(self):
+    def clearState(self) -> str:
         """Clear device state.
 
         Deleting the device state, for example, if the Global Limits have been exceeded.
@@ -260,7 +277,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine("*CLS")
 
-    def readState(self):
+    def readState(self) -> str:
         """Read device state.
 
         Read the device state, for example, if the Global Limits have been exceeded.
@@ -272,7 +289,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine("*CLS?")
 
-    def checkResetStatus(self):
+    def checkResetStatus(self) -> str:
         """Check device status.
 
         Read and clear the status if an error has occurred.
@@ -286,7 +303,7 @@ class SCPIDevice:
             print("Error Status: " + str(status))
         return status
 
-    def resetCommand(self):
+    def resetCommand(self) -> str:
         """Reset the device.
 
         **THIS FUNCTION CAN BE CALLED FROM AN OTHER THREAD**
@@ -302,7 +319,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine("*RST")
 
-    def abortCommand(self):
+    def abortCommand(self) -> str:
         """Abort of the active measurement.
 
         **THIS FUNCTION CAN BE CALLED FROM AN OTHER THREAD**
@@ -321,7 +338,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine("ABOR")
 
-    def calibrateOffsets(self):
+    def calibrateOffsets(self) -> str:
         """Execute the offset calibration.
 
         The offsets must be calibrated manually by calling this method after the instrument has been
@@ -343,7 +360,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":SESO:CALO")
 
-    def switchToEPCControl(self):
+    def switchToEPCControl(self) -> str:
         """Switch to EPC operation.
 
         When this command is called, the device closes the USB connection and can only be controlled via the EPC interface.
@@ -361,7 +378,7 @@ class SCPIDevice:
             self._dataReceiver.stop()
         return self._writeCommandToInterfaceAndReadLine(":SYST:SEPC")
 
-    def setLineFrequency(self, frequency):
+    def setLineFrequency(self, frequency: float) -> str:
         """Set the line frequency of the device.
 
         With this command the line frequency can be changed, depending on the country where the
@@ -381,7 +398,7 @@ class SCPIDevice:
             ":SYST:LINF {}".format(frequency)
         )
 
-    def getLineFrequency(self):
+    def getLineFrequency(self) -> float:
         """Read the line frequency of the device.
 
         The line frequency is stored in the device and is still stored after a restart of the device.
@@ -393,7 +410,9 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadValue(":SYST:LINF?")
 
-    def setDateTime(self, year, month, day, hour, minute, second):
+    def setDateTime(
+        self, year: int, month: int, day: int, hour: int, minute: int, second: int
+    ) -> str:
         """Set the time of the device.
 
         This command is used to set the device time.
@@ -408,16 +427,31 @@ class SCPIDevice:
             )
         )
 
-    def getDateTime(self):
-        """Read the time of the device.
+    def __get_date_time_str_as_iso_8601__(self) -> str:
+        """read the time of the device
 
         :SCPI-COMMAND: :SYST:TIME?
-        :returns: The time from the device as ISO 8601 string.
+        :returns: the time from the device as ISO 8601 string
         :rtype: string
         """
         return self._writeCommandToInterfaceAndReadLine(":SYST:TIME?")
 
-    def getSoftwareInfo(self):
+    def getDateTime(self) -> str:
+        """read the time of the device
+
+        :returns: the time from the device as ISO 8601 string
+        """
+        return self.__get_date_time_str_as_iso_8601__()
+
+    def getDateTimeStruct(self) -> datetime.date:
+        """
+        read the time of the device
+
+        :returns the date and time as `datetime` struct
+        """
+        return datetime.datetime.fromisoformat(self.__get_date_time_str_as_iso_8601__())
+
+    def getSoftwareInfo(self) -> str:
         """Read software information.
 
         The basic revision of the software can be queried with IDN.
@@ -433,7 +467,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":SYST:SOFT:INFO?")
 
-    def getPotential(self):
+    def getPotential(self) -> float:
         """Read the potential from the device.
 
         This command is the same as getVoltage to allow the naming of voltage and potential.
@@ -444,19 +478,20 @@ class SCPIDevice:
         """
         return self.getVoltage()
 
-    def getVoltage(self):
+    def getVoltage(self) -> float:
         """Read the voltage from the device.
 
         Read the voltage between Reference and Working Sense.
 
         :SCPI-COMMAND: :MEAS:VOLT?
         :returns: The most recent measured voltage.
+        :rtype: float
         """
         line = self._writeCommandToInterfaceAndReadLine(":MEAS:VOLT?")
         text = line.split(",")
         return float(text[0])
 
-    def getPotentialMedian(self, measurements=7):
+    def getPotentialMedian(self, measurements: int = 7) -> float:
         """Read potential and calculate median.
 
         Does the same as getVoltageMedian.
@@ -467,7 +502,7 @@ class SCPIDevice:
         """
         return self.getVoltageMedian(measurements)
 
-    def getVoltageMedian(self, measurements=7):
+    def getVoltageMedian(self, measurements: int = 7) -> float:
         """Read potential and calculate median.
 
         Reade measurements times the potential from the device and calculate the
@@ -484,7 +519,7 @@ class SCPIDevice:
         data = sorted(data)
         return numpy.median(data)
 
-    def getCurrent(self):
+    def getCurrent(self) -> float:
         """Read the current from the device.
 
         This command reads only the current current value.
@@ -496,7 +531,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadValue(":MEAS:CURR?")
 
-    def getCurrentMedian(self, measurements=7):
+    def getCurrentMedian(self, measurements: int = 7) -> float:
         """Read current and calculate median.
 
         Reade measurements times the current from the device and calculate the
@@ -513,7 +548,7 @@ class SCPIDevice:
         data = sorted(data)
         return numpy.median(data)
 
-    def setPotentiostatEnabled(self, enable=False):
+    def setPotentiostatEnabled(self, enable: bool = False) -> str:
         """Switching the potentiostat on or off.
 
         If only the potentiostat is switched on, **NO RANGING** is performed and **NO LIMITS** are monitored.
@@ -542,7 +577,7 @@ class SCPIDevice:
             command = ":SESO:STAT OFF"
         return self._writeCommandToInterfaceAndReadLine(command)
 
-    def setVoltageRelation(self, relation):
+    def setVoltageRelation(self, relation: Union[RELATION, str]) -> str:
         """Set the relation of the voltage parameter for simple use.
 
         If the relation is related to OCV, :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureOCV` must be used to specify the OCV relation to
@@ -558,6 +593,7 @@ class SCPIDevice:
         :returns: The response string from the device.
         :rtype: string
         """
+        # TODO: handling of parameter `relation` is not type safe
         if isinstance(relation, RELATION) and (
             relation == RELATION.OCV or relation == RELATION.OCV.value
         ):
@@ -565,10 +601,11 @@ class SCPIDevice:
         elif isinstance(relation, str) and ("OCV" in relation or "OCP" in relation):
             command = ":SESO:UREL OCV"
         else:
+            # TODO: This line looks like a silent failure. Either fix it or document it.
             command = ":SESO:UREL 0"
         return self._writeCommandToInterfaceAndReadLine(command)
 
-    def setVoltageValue(self, value):
+    def setVoltageValue(self, value: float) -> str:
         """Set the voltage parameter for simple use.
 
         This value should be set before switching on.
@@ -585,7 +622,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":SESO:UVAL " + str(value))
 
-    def setCurrentValue(self, value):
+    def setCurrentValue(self, value: float) -> str:
         """Set the current parameter for simple use.
 
         This value should be set before switching on.
@@ -600,7 +637,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":SESO:IVAL " + str(value))
 
-    def getMACAddress(self):
+    def getMACAddress(self) -> str:
         """Read MAC address from device.
 
         Each device is assigned a MAC address from the Zahner MAC address block.
@@ -612,7 +649,8 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":SYST:MAC?")
 
-    def setVoltageRange(self, voltage):
+    def setVoltageRange(self, voltage) -> str:
+        # TODO: write type annotation for parameter `voltage`
         """Set the voltage range.
 
         This command sets the voltage range by an voltage value.
@@ -625,6 +663,7 @@ class SCPIDevice:
         return self._writeCommandToInterfaceAndReadLine(":SESO:VRNG " + str(voltage))
 
     def setVoltageRangeIndex(self, voltage):
+        # TODO: write type annotation for parameter `voltage`
         """Set the voltage range.
 
         This command sets the voltage range by the range index.
@@ -639,7 +678,7 @@ class SCPIDevice:
             ":SESO:VRNG:IDX " + str(voltage)
         )
 
-    def setAutorangingEnabled(self, state=True):
+    def setAutorangingEnabled(self, state: bool = True) -> str:
         """Set the autoranging state.
 
         This does not work perfectly depending on the measurement object.
@@ -670,7 +709,7 @@ class SCPIDevice:
             command = ":SESO:CRNG:AUTO 0"
         return self._writeCommandToInterfaceAndReadLine(command)
 
-    def setInterpolationEnabled(self, state=True):
+    def setInterpolationEnabled(self, state: bool = True) -> str:
         """Set the interpolation state.
 
         When autoranging is active, disturbances in the measurement may be seen
@@ -694,7 +733,7 @@ class SCPIDevice:
             command = ":SESO:INTP 0"
         return self._writeCommandToInterfaceAndReadLine(command)
 
-    def setMinimumShuntIndex(self, index):
+    def setMinimumShuntIndex(self, index: int) -> str:
         """Set the minimum shunt index.
 
         This command sets the smallest shunt that is used.
@@ -709,7 +748,7 @@ class SCPIDevice:
             ":SESO:CRNG:AUTO:LLIM " + str(index)
         )
 
-    def setMaximumShuntIndex(self, index):
+    def setMaximumShuntIndex(self, index: int) -> str:
         """Set the maximum shunt index.
 
         This command sets the biggest shunt that is used.
@@ -724,7 +763,7 @@ class SCPIDevice:
             ":SESO:CRNG:AUTO:ULIM " + str(index)
         )
 
-    def setShuntIndex(self, index):
+    def setShuntIndex(self, index: int) -> str:
         """Set the shunt index.
 
         This command sets a shunt, via its index.
@@ -737,7 +776,8 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":SESO:CRNG:IDX " + str(index))
 
-    def setCurrentRange(self, current):
+    def setCurrentRange(self, current) -> str:
+        # TODO: write type annotation for parameter `current`
         """Set the current range.
 
         This command sets a shunt.
@@ -750,7 +790,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":SESO:CRNG " + str(current))
 
-    def setTimeParameter(self, time):
+    def setTimeParameter(self, time: Union[float, str]) -> str:
         """Set the time parameter.
 
         This command sets the time for primitives that require a single time parameter, such as ramps.
@@ -781,7 +821,7 @@ class SCPIDevice:
         time = self._processTimeInput(time)
         return self._writeCommandToInterfaceAndReadLine(":PARA:TIME " + str(time))
 
-    def setMaximumTimeParameter(self, value):
+    def setMaximumTimeParameter(self, value: Union[float, str]) -> str:
         """Set the maximum time parameter.
 
         Parameters for primitives that require a maximum time.
@@ -792,28 +832,28 @@ class SCPIDevice:
         the time should not be less than one second.
 
         :SCPI-COMMAND: :PARA:TMAX <value>
-        :param time: The time parameter.
-        :returns: The response string from the device.
+        :param time: time parameter; for valid values see `setTimeParameter`
+        :returns: response string from the device
         :rtype: string
         """
         value = self._processTimeInput(value)
         return self._writeCommandToInterfaceAndReadLine(":PARA:TMAX " + str(value))
 
-    def setMinimumTimeParameter(self, value):
+    def setMinimumTimeParameter(self, value: Union[float, str]) -> str:
         """Set the minimum time parameter.
 
         Parameters for primitives that require a minimum time.
         Enter the parameter as for :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.setTimeParameter`.
 
         :SCPI-COMMAND: :PARA:TMIN <value>
-        :param time: The time parameter.
+        :param time: time parameter; for valid values see `setTimeParameter`
         :returns: The response string from the device.
         :rtype: string
         """
         value = self._processTimeInput(value)
         return self._writeCommandToInterfaceAndReadLine(":PARA:TMIN " + str(value))
 
-    def setVoltageParameterRelation(self, relation):
+    def setVoltageParameterRelation(self, relation: Union[RELATION, str]) -> str:
         """Set the relation of the voltage parameter for primitves.
 
         If the relation is related to OCV, :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.measureOCV` must be used to specify the OCV relation to
@@ -829,6 +869,9 @@ class SCPIDevice:
         :returns: The response string from the device.
         :rtype: string
         """
+
+        # TODO: handling of parameter `relation` is not type safe
+        # TODO: this function violates DRY; see `setVoltageRelation`
         if isinstance(relation, RELATION) and (
             relation == RELATION.OCV or relation == RELATION.OCV.value
         ):
@@ -836,10 +879,12 @@ class SCPIDevice:
         elif isinstance(relation, str) and ("OCV" in relation or "OCP" in relation):
             command = ":PARA:UREL OCV"
         else:
+            # TODO: This line looks like a silent failure. Either fix it or document it.
             command = ":PARA:UREL 0"
         return self._writeCommandToInterfaceAndReadLine(command)
 
-    def setVoltageParameter(self, value):
+    def setVoltageParameter(self, value) -> str:
+        # TODO: annotate `value` type
         """Set the voltage parameter for primitives.
 
         Primitves that need an voltage parameter like ramps use this parameter.
@@ -854,7 +899,8 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":PARA:UVAL " + str(value))
 
-    def setCurrentParameter(self, value):
+    def setCurrentParameter(self, value) -> str:
+        # TODO: annotate `value` type
         """Set the current parameter for primitives.
 
         Primitves that need an current parameter like ramps use this parameter.
@@ -867,7 +913,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":PARA:IVAL " + str(value))
 
-    def setScanRateParameter(self, scanrate):
+    def setScanRateParameter(self, scanrate: float) -> str:
         """Set the scan rate for primitives.
 
         Primitves that need an scan rate parameter use this parameter.
@@ -880,7 +926,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":PARA:SCRA " + str(scanrate))
 
-    def setCoupling(self, coupling):
+    def setCoupling(self, coupling: Union[COUPLING, str]) -> str:
         """Set the coupling of the device.
 
         Set the coupling to galvanostatic or potentiostatic.
@@ -895,6 +941,7 @@ class SCPIDevice:
         :returns: The response string from the device.
         :rtype: string
         """
+        # TODO: make `coupling` type-safe
         if isinstance(coupling, str):
             if coupling in "pot" or coupling == COUPLING.POTENTIOSTATIC:
                 command = ":SESO:COUP pot"
@@ -902,17 +949,19 @@ class SCPIDevice:
             else:
                 command = ":SESO:COUP gal"
                 self._coupling = COUPLING.GALVANOSTATIC
-        else:
+        elif isinstance(coupling, COUPLING):
             if coupling == COUPLING.POTENTIOSTATIC:
                 command = ":SESO:COUP pot"
                 self._coupling = COUPLING.POTENTIOSTATIC
             else:
                 command = ":SESO:COUP gal"
                 self._coupling = COUPLING.GALVANOSTATIC
+        else:
+            raise ValueError("invalid type for parameter `coupling`")
 
         return self._writeCommandToInterfaceAndReadLine(command)
 
-    def setBandwith(self, bandwith):
+    def setBandwith(self, bandwith: int) -> str:
         """Set the bandwith of the device.
 
         The bandwidth of the device is automatically set correctly, it is not recommended to change it.
@@ -922,9 +971,10 @@ class SCPIDevice:
         :returns: The response string from the device.
         :rtype: string
         """
+        # TODO: rename `bandwith` to `bandwidth_idx` (fix type and add `idx` for clarity)
         return self._writeCommandToInterfaceAndReadLine(":SESO:BAND " + str(bandwith))
 
-    def setFilterFrequency(self, frequency):
+    def setFilterFrequency(self, frequency: float) -> str:
         """Set the filter frequency of the device.
 
         The filter frequency of the device is automatically set correctly, it is not recommended to change it.
@@ -936,7 +986,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":SESO:FILT " + str(frequency))
 
-    def setParameterLimitCheckToleranceTime(self, time):
+    def setParameterLimitCheckToleranceTime(self, time: float) -> str:
         """Setting the time for which operation outside the limits is allowed.
 
         By default this parameter is 0.
@@ -946,14 +996,14 @@ class SCPIDevice:
         Enter the parameter as for :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.setTimeParameter`.
 
         :SCPI-COMMAND: :PARA:UILT <value>
-        :param state: The time in seconds.
+        :param time: The time in seconds.
         :returns: The response string from the device.
         :rtype: string
         """
         time = self._processTimeInput(time)
         return self._writeCommandToInterfaceAndReadLine(":PARA:UILT " + str(time))
 
-    def setMinMaxVoltageParameterCheckEnabled(self, state=True):
+    def setMinMaxVoltageParameterCheckEnabled(self, state: bool = True) -> str:
         """Switch voltage check on or off.
 
         The voltage is absolute and independent of OCP/OCV.
@@ -969,13 +1019,11 @@ class SCPIDevice:
         :returns: The response string from the device.
         :rtype: string
         """
-        if state == True:
-            command = ":PARA:ULIM:STAT ON"
-        else:
-            command = ":PARA:ULIM:STAT OFF"
-        return self._writeCommandToInterfaceAndReadLine(command)
+        return self._writeCommandToInterfaceAndReadLine(
+            ":PARA:ULIM:STAT ON" if state else ":PARA:ULIM:STAT OFF"
+        )
 
-    def setMinMaxCurrentParameterCheckEnabled(self, state=True):
+    def setMinMaxCurrentParameterCheckEnabled(self, state: bool = True) -> str:
         """Switch current check on or off.
 
         The current is absolute with sign.
@@ -991,13 +1039,11 @@ class SCPIDevice:
         :returns: The response string from the device.
         :rtype: string
         """
-        if state == True:
-            command = ":PARA:ILIM:STAT ON"
-        else:
-            command = ":PARA:ILIM:STAT OFF"
-        return self._writeCommandToInterfaceAndReadLine(command)
+        return self._writeCommandToInterfaceAndReadLine(
+            ":PARA:ILIM:STAT ON" if state else ":PARA:ILIM:STAT OFF"
+        )
 
-    def setMaximumVoltageParameter(self, value):
+    def setMaximumVoltageParameter(self, value: float) -> str:
         """Set the maximum voltage parameter for primitives.
 
         The voltage is absolute and independent of OCP/OCV.
@@ -1013,7 +1059,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":PARA:ULIM:MAX " + str(value))
 
-    def setMinimumVoltageParameter(self, value):
+    def setMinimumVoltageParameter(self, value: float) -> str:
         """Set the minimum voltage parameter for primitives.
 
         The voltage is absolute and independent of OCP/OCV.
@@ -1029,7 +1075,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":PARA:ULIM:MIN " + str(value))
 
-    def setMaximumCurrentParameter(self, value):
+    def setMaximumCurrentParameter(self, value: float) -> str:
         """Set the maximum voltage parameter for primitives.
 
         The current is absolute with sign.
@@ -1045,7 +1091,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":PARA:ILIM:MAX " + str(value))
 
-    def setMinimumCurrentParameter(self, value):
+    def setMinimumCurrentParameter(self, value: float) -> str:
         """Set the minimum voltage parameter for primitives.
 
         The current is absolute with sign.
@@ -1061,7 +1107,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":PARA:ILIM:MIN " + str(value))
 
-    def setGlobalLimitCheckToleranceTime(self, time):
+    def setGlobalLimitCheckToleranceTime(self, time: float) -> str:
         """Setting the time for which operation outside the limits is allowed.
 
         By default this parameter is 0.
@@ -1071,14 +1117,14 @@ class SCPIDevice:
         Enter the parameter as for :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.setTimeParameter`.
 
         :SCPI-COMMAND: :SESO:UILT <value>
-        :param state: The time in seconds.
+        :param time: the time in seconds
         :returns: The response string from the device.
         :rtype: string
         """
         time = self._processTimeInput(time)
         return self._writeCommandToInterfaceAndReadLine(":SESO:UILT " + str(time))
 
-    def setGlobalVoltageCheckEnabled(self, state=True):
+    def setGlobalVoltageCheckEnabled(self, state: bool = True):
         """Switch global voltage check on or off.
 
         The voltage is absolute and independent of OCP/OCV.
@@ -1094,13 +1140,11 @@ class SCPIDevice:
         :returns: The response string from the device.
         :rtype: string
         """
-        if state == True:
-            command = ":SESO:ULIM:STAT ON"
-        else:
-            command = ":SESO:ULIM:STAT OFF"
-        return self._writeCommandToInterfaceAndReadLine(command)
+        return self._writeCommandToInterfaceAndReadLine(
+            ":SESO:ULIM:STAT ON" if state else ":SESO:ULIM:STAT OFF"
+        )
 
-    def setGlobalCurrentCheckEnabled(self, state=True):
+    def setGlobalCurrentCheckEnabled(self, state: bool = True) -> str:
         """Switch global current check on or off.
 
         The current is absolute with sign.
@@ -1116,13 +1160,11 @@ class SCPIDevice:
         :returns: The response string from the device.
         :rtype: string
         """
-        if state == True:
-            command = ":SESO:ILIM:STAT ON"
-        else:
-            command = ":SESO:ILIM:STAT OFF"
-        return self._writeCommandToInterfaceAndReadLine(command)
+        return self._writeCommandToInterfaceAndReadLine(
+            ":SESO:ILIM:STAT ON" if state else ":SESO:ILIM:STAT OFF"
+        )
 
-    def setMaximumVoltageGlobal(self, value):
+    def setMaximumVoltageGlobal(self, value: float) -> str:
         """Set the maximum voltage for the device.
 
         The voltage is absolute and independent of OCP/OCV.
@@ -1137,7 +1179,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":SESO:ULIM:MAX " + str(value))
 
-    def setMinimumVoltageGlobal(self, value):
+    def setMinimumVoltageGlobal(self, value: float) -> str:
         """Set the minimum voltage for the device.
 
         The voltage is absolute and independent of OCP/OCV.
@@ -1152,7 +1194,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":SESO:ULIM:MIN " + str(value))
 
-    def setMaximumCurrentGlobal(self, value):
+    def setMaximumCurrentGlobal(self, value: float) -> str:
         """Set the maximum current for the device.
 
         The current is absolute with sign.
@@ -1167,7 +1209,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":SESO:ILIM:MAX " + str(value))
 
-    def setMinimumCurrentGlobal(self, value):
+    def setMinimumCurrentGlobal(self, value: float) -> str:
         """Set the minimum current for the device.
 
         The current is absolute with sign.
@@ -1182,7 +1224,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":SESO:ILIM:MIN " + str(value))
 
-    def setSamplingFrequency(self, frequency):
+    def setSamplingFrequency(self, frequency: float) -> str:
         """Set the the sampling frequency.
 
         This frequency is used for all primitives except IE stairs.
@@ -1192,9 +1234,10 @@ class SCPIDevice:
         :returns: The response string from the device.
         :rtype: string
         """
+        # TODO: is `frequency` really a float or actually an int?
         return self._writeCommandToInterfaceAndReadLine(":SESO:SFRQ " + str(frequency))
 
-    def setToleranceBreakEnabled(self, value=True):
+    def setToleranceBreakEnabled(self, value: bool = True) -> str:
         """Allowing tolerance break for primitive.
 
         The primitive potentiostatic and galvanostatic polarization or OCVScan can be aborted if the absolute change tolerance
@@ -1219,13 +1262,11 @@ class SCPIDevice:
         :returns: The response string from the device.
         :rtype: string
         """
-        if value == True:
-            command = ":PARA:TOL:STAT 1"
-        else:
-            command = ":PARA:TOL:STAT 0"
-        return self._writeCommandToInterfaceAndReadLine(command)
+        return self._writeCommandToInterfaceAndReadLine(
+            ":PARA:TOL:STAT 1" if value else ":PARA:TOL:STAT 0"
+        )
 
-    def setAbsoluteTolerance(self, value):
+    def setAbsoluteTolerance(self, value: float) -> str:
         """Set the absolute tolerance.
 
         Documentation is with the method :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.setToleranceBreakEnabled`.
@@ -1237,7 +1278,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":PARA:TOL:ABS " + str(value))
 
-    def setRelativeTolerance(self, value):
+    def setRelativeTolerance(self, value: float) -> str:
         """Set the relative tolerance.
 
         Documentation is with the method :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.setToleranceBreakEnabled`.
@@ -1249,7 +1290,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":PARA:TOL:REL " + str(value))
 
-    def setChargeBreakEnabled(self, value=True):
+    def setChargeBreakEnabled(self, value: bool = True) -> str:
         """Allowing charge break for primitive.
 
         With primitive potentiostatic and galvanostatic polarization, you can set an upper charge limit and a lower
@@ -1264,13 +1305,11 @@ class SCPIDevice:
         :returns: The response string from the device.
         :rtype: string
         """
-        if value == True:
-            command = ":PARA:CHAR:STAT 1"
-        else:
-            command = ":PARA:CHAR:STAT 0"
-        return self._writeCommandToInterfaceAndReadLine(command)
+        return self._writeCommandToInterfaceAndReadLine(
+            ":PARA:CHAR:STAT 1" if value else ":PARA:CHAR:STAT 0"
+        )
 
-    def setMaximumCharge(self, value):
+    def setMaximumCharge(self, value: float) -> str:
         """Set the maximum charge parameter for primitives.
 
         If the monitoring is switched on, the primitive is successfully aborted when
@@ -1284,7 +1323,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":PARA:CHAR:MAX " + str(value))
 
-    def setMinimumCharge(self, value):
+    def setMinimumCharge(self, value: float) -> str:
         """Set the minimum charge parameter for primitives.
 
         If the monitoring is switched on, the primitive is successfully aborted when
@@ -1298,7 +1337,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":PARA:CHAR:MIN " + str(value))
 
-    def getTemperature(self):
+    def getTemperature(self) -> float:
         """Read temperatur from the connected thermoelement.
 
         For this command, a thermocouple must be connected to the back of the device.
@@ -1312,9 +1351,10 @@ class SCPIDevice:
         :returns: The measured temperature in degree celsius.
         :rtype: float
         """
+        # TODO: does this really return a `float`? The called method returns a `str`
         return self._writeCommandToInterfaceAndReadLine(":MEAS:TEMP?")
 
-    def setStepSize(self, value):
+    def setStepSize(self, value: float) -> str:
         """Set the step size for primitives.
 
         This parameter is used only by the IEStairs.
@@ -2001,7 +2041,7 @@ class SCPIDevice:
             retval = time
         return retval
 
-    def _writeCommandToInterfaceAndReadValue(self, string):
+    def _writeCommandToInterfaceAndReadValue(self, string) -> float:
         """Private function to send a command to the device and read a float.
 
         This function sends the data to the device with the class SerialCommandInterface and waits
@@ -2014,7 +2054,7 @@ class SCPIDevice:
         line = self._writeCommandToInterfaceAndReadLine(string)
         return float(line)
 
-    def _writeCommandToInterfaceAndReadLine(self, string):
+    def _writeCommandToInterfaceAndReadLine(self, string: str) -> str:
         """Private function to send a command to the device and read a string.
 
         This function sends the data to the device with the class SerialCommandInterface and waits
@@ -2028,6 +2068,7 @@ class SCPIDevice:
         :returns: Response string from the device.
         :rtype: string
         """
+
         if "ABOR" in string or "*RST" in string:
             line = self._commandInterface.sendStringAndWaitForReplyString(
                 string, CommandType.CONTROL
