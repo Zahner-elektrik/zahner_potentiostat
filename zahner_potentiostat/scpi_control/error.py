@@ -94,15 +94,24 @@ class ZahnerSCPIError(ZahnerError):
     """associates an error number with a human-readable error code"""
 
     def __init__(self, error_code: Union[int, str]):
+        # try to convert the error code to an int
+        # unfortunately, the calling code adds a lot of "garbage strings", e.g. "Issue: \nerror "
+        # TODO: this conversion should be done in the base class – just pass `_message_string` to
+        # the base class constructor and let it handle the dirty work
         if isinstance(error_code, str):
             try:
-                error_code = int(error_code.strip())
+                error_code = int(
+                    error_code.removeprefix("Issue:")
+                    .strip()
+                    .removeprefix("error")
+                    .strip()
+                )
             except:
                 pass  # TODO: this is not type-safe
         super().__init__(
             error_code,
             (
-                self._message_strings[self._error_code]
+                self._message_strings[error_code]  # type: ignore # mypy gets confused here
                 if error_code in self._message_strings
                 else "unknown error – maybe upgrade your version of `zahner_potentiostat` package"
             ),
