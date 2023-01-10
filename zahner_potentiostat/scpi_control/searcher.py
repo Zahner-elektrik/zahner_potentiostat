@@ -28,7 +28,7 @@ import glob
 import sys
 import time
 
-from serial.serialwin32 import Serial
+from serial import Serial
 import serial.tools.list_ports
 
 
