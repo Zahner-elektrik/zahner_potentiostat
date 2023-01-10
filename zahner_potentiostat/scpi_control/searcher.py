@@ -27,6 +27,7 @@ THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 import glob
 import sys
 import time
+from typing import Union
 
 from serial import Serial
 import serial.tools.list_ports
@@ -173,7 +174,7 @@ class SCPIDeviceSearcher:
 
         return self.foundZahnerDevicesSerialNumbers
 
-    def selectDevice(self, serialNumber=None):
+    def selectDevice(self, serialNumber: Union[int, str, None] = None):
         """Select a found device.
 
         This method selects a device by its serial number.
@@ -186,12 +187,15 @@ class SCPIDeviceSearcher:
         The data has to be read from the online channel, otherwise the measuring device hangs.
         The online channel can also be used by other software like the Zahner-Lab to use it as a display.
 
-        :param serialNumber: The serial number of the device to select as string.
+        :param serialNumber: The serial number of the device to select as `str` or `int` – specify `None` to select the first device found.
         :returns: Two strings commandInterface, dataInterface with the port names.
         """
         self.commandInterface = None
         self.dataInterface = None
-
+        
+        if isinstance(serialNumber, int):
+            serialNumber = str(serialNumber)
+        
         if serialNumber == None:
             """
             Use the first device if no serialnumber was set.
