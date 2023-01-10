@@ -6,3 +6,5 @@ __pycache__
 .project
 .pydevproject
 /sphinxenv/
+/dist/
+/*.egg-info/
