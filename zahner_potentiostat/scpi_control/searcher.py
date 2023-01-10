@@ -187,15 +187,15 @@ class SCPIDeviceSearcher:
         The data has to be read from the online channel, otherwise the measuring device hangs.
         The online channel can also be used by other software like the Zahner-Lab to use it as a display.
 
-        :param serialNumber: The serial number of the device to select as `str` or `int` – specify `None` to select the first device found
+        :param serialNumber: The serial number of the device to select as `str` or `int` – specify `None` to select the first device found.
         :returns: Two strings commandInterface, dataInterface with the port names.
         """
         self.commandInterface = None
         self.dataInterface = None
-
+        
         if isinstance(serialNumber, int):
             serialNumber = str(serialNumber)
-
+        
         if serialNumber == None:
             """
             Use the first device if no serialnumber was set.
