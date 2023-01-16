@@ -4,7 +4,7 @@
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
  /___/\_,_/_//_/_//_/\__/_/      \__/_/\__/_/\_\\__/_/ /_/_/\_\
 
-Copyright 2022 Zahner-Elektrik GmbH & Co. KG
+Copyright 2023 Zahner-Elektrik GmbH & Co. KG
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the "Software"),
@@ -24,13 +24,13 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
 THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
-from typing import Optional, Union
+from typing import Optional, Union, ClassVar
 
 
 class ZahnerError(Exception):
     """Base class for inheritance for Zahner errors.
 
-    This class is used to identify Zahnner errors all other Zahnner errors are derived from this class.
+    This class is used to identify Zahner errors all other Zahner errors are derived from this class.
     """
 
     _error_code: int
@@ -46,7 +46,8 @@ class ZahnerError(Exception):
         self._error_code = error_code
         self._error_message = error_message
         super().__init__(
-            "error code "
+            "error code"
+            + (": " if self._error_message is None else " ")
             + str(self._error_code)
             + (": " + self._error_message if self._error_message is not None else "")
         )
@@ -61,6 +62,7 @@ class ZahnerConnectionError(ZahnerError):
 
     def __init__(self, error_code: Union[int, str]):
         super().__init__(error_code, None)
+        return
 
 
 class ZahnerDataProtocolError(ZahnerError):
@@ -71,16 +73,16 @@ class ZahnerDataProtocolError(ZahnerError):
 
     def __init__(self, error_code: Union[int, str]):
         super().__init__(error_code, None)
+        return
 
 
 class ZahnerSCPIError(ZahnerError):
-    """
-    exception which can be thrown if the device responds to a command with an error
+    """Exception which can be thrown if the device responds to a command with an error.
 
-    see static attribute `_message_strings` for possible specializations
+    See static attribute `_message_strings` for possible specializations.
     """
 
-    _message_strings: dict[int, str] = {
+    _message_strings: ClassVar[dict[int, str]] = {
         100: "value is out of range",
         27: "command does not exist",
         1003: "setup global limit reached",
@@ -93,26 +95,12 @@ class ZahnerSCPIError(ZahnerError):
     }
     """associates an error number with a human-readable error code"""
 
-    def __init__(self, error_code: Union[int, str]):
-        # try to convert the error code to an int
-        # unfortunately, the calling code adds a lot of "garbage strings", e.g. "Issue: \nerror "
-        # TODO: this conversion should be done in the base class – just pass `_message_string` to
-        # the base class constructor and let it handle the dirty work
-        if isinstance(error_code, str):
-            try:
-                error_code = int(
-                    error_code.removeprefix("Issue:")
-                    .strip()
-                    .removeprefix("error")
-                    .strip()
-                )
-            except:
-                pass  # TODO: this is not type-safe
+    def __init__(self, error_code: int):
         super().__init__(
             error_code,
             (
                 self._message_strings[error_code]  # type: ignore # mypy gets confused here
                 if error_code in self._message_strings
-                else "unknown error – maybe upgrade your version of `zahner_potentiostat` package"
+                else "unknown error maybe upgrade your version of `zahner_potentiostat` package"
             ),
         )

@@ -4,7 +4,7 @@
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
  /___/\_,_/_//_/_//_/\__/_/      \__/_/\__/_/\_\\__/_/ /_/_/\_\
 
-Copyright 2022 Zahner-Elektrik GmbH & Co. KG
+Copyright 2023 Zahner-Elektrik GmbH & Co. KG
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the "Software"),
@@ -28,6 +28,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import EngFormatter
 import numpy as np
+from typing import Optional, Union
 
 
 class DCPlot(object):
@@ -64,7 +65,15 @@ class DCPlot(object):
 
     colors = ["r", "b", "g", "c", "m", "y"]
 
-    def __init__(self, figureTitle, xAxisLabel, xAxisUnit, yAxis, data=None, **kwargs):
+    def __init__(
+        self,
+        figureTitle: str,
+        xAxisLabel: str,
+        xAxisUnit: str,
+        yAxis: list[dict[str, str]],
+        data: Optional[list[list[float]]] = None,
+        **kwargs
+    ):
         self._isOpen = True
         self.xData = []
         self.yData = []
@@ -148,7 +157,9 @@ class DCPlot(object):
         plt.pause(100e-3)
         return
 
-    def addData(self, xData, yDatas, redraw=True):
+    def addData(
+        self, xData: list[float], yDatas: list[list[float]], redraw: bool = True
+    ) -> None:
         """Append the data of the plot.
 
         This method is used to append data to the plot.
@@ -192,7 +203,7 @@ class DCPlot(object):
             plt.pause(1e-3)
         return
 
-    def pause(self, time):
+    def pause(self, time: float) -> None:
         """Pause the plot.
 
         When the display pause is called, it gets compute time and is re-rendered.
@@ -203,7 +214,7 @@ class DCPlot(object):
         plt.pause(time)
         return
 
-    def clearData(self):
+    def clearData(self) -> None:
         """Clear the data from the plot.
 
         This command only deletes the data from the display.
@@ -217,7 +228,7 @@ class DCPlot(object):
             self.line[i].set_xdata(self.xData)
         return
 
-    def clearPlot(self):
+    def clearPlot(self) -> None:
         """Clear the data from the plot.
 
         This command deletes the data from the display and then redraws all of them to update the display.
@@ -228,7 +239,12 @@ class DCPlot(object):
         plt.pause(1e-3)
         return
 
-    def savePlot(self, file, w=None, h=None):
+    def savePlot(
+        self,
+        file: str,
+        w: Optional[float] = None,
+        h: Optional[float] = None,
+    ) -> None:
         """Saving the plot.
 
         Saving the plot, where the size of the plot can be adjusted beforehand.
@@ -251,12 +267,12 @@ class DCPlot(object):
         self.fig.savefig(file, bbox_inches="tight")
         return
 
-    def close(self):
+    def close(self) -> None:
         """Close the plot."""
         plt.close()
         return
 
-    def isOpen(self):
+    def isOpen(self) -> bool:
         """Check if the window is open.
 
         Checks if the window is still open. If the window is closed, a private variable in the
@@ -266,7 +282,7 @@ class DCPlot(object):
         """
         return self._isOpen
 
-    def _closeEvent(self, evt):
+    def _closeEvent(self, evt) -> None:
         """Close event.
 
         This function is called when the plotting window is closed.

@@ -4,7 +4,7 @@
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
  /___/\_,_/_//_/_//_/\__/_/      \__/_/\__/_/\_\\__/_/ /_/_/\_\
 
-Copyright 2022 Zahner-Elektrik GmbH & Co. KG
+Copyright 2023 Zahner-Elektrik GmbH & Co. KG
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the "Software"),
@@ -25,11 +25,12 @@ THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
 from .dcplot import DCPlot
-from zahner_potentiostat.scpi_control.datareceiver import TrackTypes
+from zahner_potentiostat.scpi_control.datareceiver import TrackTypes, DataReceiver
 import multiprocessing
 import threading
 import time
 from enum import Enum
+from typing import Union, Optional
 
 
 class OnlineDisplayStatus(Enum):
@@ -63,12 +64,14 @@ class PlottingProcess:
         """Constructor"""
         self._pipe = None
         self._display = None
+        return
 
-    def terminate(self):
+    def terminate(self) -> None:
         """Close"""
         self._display.close()
+        return
 
-    def processingLoop(self):
+    def processingLoop(self) -> None:
         """Main process loop.
 
         This is the main loop and will continue until None is sent to the process or the display is closed.
@@ -99,8 +102,9 @@ class PlottingProcess:
                 print(f"Exception message: {e}")
                 self.terminate()
                 return
+        return
 
-    def __call__(self, pipe, displayConfiguration):
+    def __call__(self, pipe: multiprocessing.Pipe, displayConfiguration: dict) -> None:
         """Call method implementation.
 
         Initialization and call of the main loop of the process in which the data is processed and plotted.
@@ -111,6 +115,7 @@ class PlottingProcess:
         self._display = DCPlot(**displayConfiguration)
 
         self.processingLoop()
+        return
 
 
 class OnlineDisplay(object):
@@ -172,7 +177,12 @@ class OnlineDisplay(object):
         in the previous text for other representations.
     """
 
-    def __init__(self, dataReceiver, data=None, displayConfiguration=None):
+    def __init__(
+        self,
+        dataReceiver: DataReceiver,
+        data: Optional[list[list[float]]] = None,
+        displayConfiguration: Optional[Union[str, dict]] = None,
+    ):
         self._dataReveiver = dataReceiver
         self._numberOfPoints = 0
         self._processingLoopRunning = True
@@ -265,7 +275,7 @@ class OnlineDisplay(object):
             self._sendDataToProcess(data)
         return
 
-    def stopProcessingLoop(self):
+    def stopProcessingLoop(self) -> None:
         """
         This function must be called by another thread which tells the processing loop
         to stop the loop to process online data. Because of the Matplotlib syntax,
@@ -274,7 +284,7 @@ class OnlineDisplay(object):
         self._processingLoopRunning = False
         return
 
-    def setMinimumSendInterval(self, interval):
+    def setMinimumSendInterval(self, interval: float) -> None:
         """Set the minimum interval for sending data.
 
         Only after this time is it checked again whether data can be sent to the online display.
@@ -284,7 +294,7 @@ class OnlineDisplay(object):
         self.minSendInterval = interval
         return
 
-    def processingLoop(self):
+    def processingLoop(self) -> None:
         """Measurement data processing thread.
 
         This thread reads from the DataReceiver object. If there is new data, all points are sent to
@@ -357,7 +367,9 @@ class OnlineDisplay(object):
                 time.sleep(self.minSendInterval)
         return
 
-    def _sendDataToProcess(self, job, data=None):
+    def _sendDataToProcess(
+        self, job: OnlineDisplayJob, data: Optional[list[list[float]]] = None
+    ) -> None:
         """Sending data to the process via the pipe.
 
         This method reads the data from the DataReceiver object and assembles it so that it can be
@@ -379,13 +391,15 @@ class OnlineDisplay(object):
             )
         return
 
-    def _waitForReplyFromProcess(self):
+    def _waitForReplyFromProcess(
+        self,
+    ) -> dict[str, Union[OnlineDisplayJob, list[list[float]]]]:
         return self.plot_pipe.recv()
 
-    def _replyFromProcessAvailable(self):
+    def _replyFromProcessAvailable(self) -> bool:
         return self.plot_pipe.poll()
 
-    def close(self):
+    def close(self) -> None:
         """Close the online display."""
         self.stopProcessingLoop()
         if self.plot_pipe.closed == False:

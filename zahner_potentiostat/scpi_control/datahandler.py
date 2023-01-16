@@ -4,7 +4,7 @@
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
  /___/\_,_/_//_/_//_/\__/_/      \__/_/\__/_/\_\\__/_/ /_/_/\_\
 
-Copyright 2022 Zahner-Elektrik GmbH & Co. KG
+Copyright 2023 Zahner-Elektrik GmbH & Co. KG
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the "Software"),
@@ -25,7 +25,8 @@ THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
 from zahner_potentiostat.display.dcplot import DCPlot
-from .datareceiver import TrackTypes
+from .datareceiver import TrackTypes, DataReceiver
+from typing import Union, Optional
 
 
 class DataManager:
@@ -40,10 +41,18 @@ class DataManager:
     :type dataReceiver: :class:`~zahner_potentiostat.scpi_control.datareceiver.DataReceiver`
     """
 
+    _receiver: DataReceiver = None
+
     def __init__(self, dataReceiver):
         self._receiver = dataReceiver
+        return
 
-    def plotTIUData(self, filename=None, width=None, height=None):
+    def plotTIUData(
+        self,
+        filename: Optional[str] = None,
+        width: Optional[float] = None,
+        height: Optional[float] = None,
+    ) -> None:
         """Plot data example.
 
         This is an example to plot the data after the measurement. For plotting the data matplotlib
@@ -79,7 +88,7 @@ class DataManager:
             display.savePlot(filename, width, height)
         return
 
-    def saveDataAsText(self, filename):
+    def saveDataAsText(self, filename: str) -> None:
         """Save data example.
 
         This is an example to save the data after the measurement.

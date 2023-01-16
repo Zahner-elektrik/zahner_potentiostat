@@ -4,7 +4,7 @@
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
  /___/\_,_/_//_/_//_/\__/_/      \__/_/\__/_/\_\\__/_/ /_/_/\_\
 
-Copyright 2022 Zahner-Elektrik GmbH & Co. KG
+Copyright 2023 Zahner-Elektrik GmbH & Co. KG
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the "Software"),
@@ -29,7 +29,7 @@ from .HUDDSCOL import *
 from .NYCCCOL import *
 
 
-def readLinesFromProfie(profile):
+def readLinesFromProfie(profile: str) -> list[str]:
     """Read lines from a file without the header.
 
     This function reads all lines from a file except the first two lines.
@@ -45,7 +45,7 @@ def readLinesFromProfie(profile):
     return lines
 
 
-def calculatedNormalisedDataForLines(lines):
+def calculatedNormalisedDataForLines(lines: list[str]) -> list[dict[str, float]]:
     """Get normalised data for the lines of the file.
 
     This function is intended as an example.
@@ -92,7 +92,7 @@ def calculatedNormalisedDataForLines(lines):
     return normalisedData
 
 
-def getNormalisedCurrentTableForHUDDSCOL():
+def getNormalisedCurrentTableForHUDDSCOL() -> list[dict[str, float]]:
     """
     These are NOT correct current cycles they are SPEED CURVES.
 
@@ -110,7 +110,7 @@ def getNormalisedCurrentTableForHUDDSCOL():
     return normalisedData
 
 
-def getNormalisedCurrentTableForNYCCCOL():
+def getNormalisedCurrentTableForNYCCCOL() -> list[dict[str, float]]:
     """
     These are NOT correct current cycles they are SPEED CURVES.
 

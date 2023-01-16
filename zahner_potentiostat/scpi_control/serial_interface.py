@@ -4,7 +4,7 @@
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
  /___/\_,_/_//_/_//_/\__/_/      \__/_/\__/_/\_\\__/_/ /_/_/\_\
 
-Copyright 2022 Zahner-Elektrik GmbH & Co. KG
+Copyright 2023 Zahner-Elektrik GmbH & Co. KG
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the "Software"),
@@ -33,6 +33,7 @@ from enum import Enum
 import queue
 from serial.serialutil import SerialException
 import time
+from typing import Optional, Union, ByteString
 
 """
 With DEBUG = True it is switched on that log strings are stored.
@@ -55,7 +56,7 @@ class SerialInterface(metaclass=ABCMeta):
     Abstract base class from which the data and command interfaces are derived.
     """
 
-    def __init__(self, serialName):
+    def __init__(self, serialName: str):
         """Constructor
         :param serialName: Name of the serial interface.
         """
@@ -64,8 +65,9 @@ class SerialInterface(metaclass=ABCMeta):
         self.logData = []
         self.connect(self.serialName)
         self._startTelegramListener()
+        return
 
-    def connect(self, serialName=None):
+    def connect(self, serialName: Optional[str] = None) -> None:
         """Connect to a serial interface.
 
         This method opens a serial interface.
@@ -96,7 +98,7 @@ class SerialInterface(metaclass=ABCMeta):
             ) from None
         return
 
-    def isConnected(self):
+    def isConnected(self) -> bool:
         """Check if there is a connection to a serial interface.
 
         :returns: True if it is connected, else False.
@@ -106,7 +108,7 @@ class SerialInterface(metaclass=ABCMeta):
         else:
             return False
 
-    def write(self, data):
+    def write(self, data: ByteString) -> None:
         """Write to the serial interface.
 
         :param data: The data as bytearray().
@@ -127,12 +129,12 @@ class SerialInterface(metaclass=ABCMeta):
             ) from None
         return
 
-    def close(self):
+    def close(self) -> None:
         """Close the connection"""
         self._stopTelegramListener()
         return
 
-    def writeLog(self, data, direction):
+    def writeLog(self, data: ByteString, direction: str) -> None:
         """Write to the log.
 
         The time stamp is calculated automatically.
@@ -149,7 +151,9 @@ class SerialInterface(metaclass=ABCMeta):
         self.logData.append(log)
         return
 
-    def getDebugString(self, withTime=False, direction=None):
+    def getDebugString(
+        self, withTime: bool = False, direction: Optional[str] = None
+    ) -> str:
         """Read the log.
         This function is intended as debug output.
         To control what was sent when to the device and what the response was.
@@ -171,7 +175,9 @@ class SerialInterface(metaclass=ABCMeta):
                     retval += log["data"] + "\n"
         return retval
 
-    def getLastCommandWithAnswer(self, withTime=False, direction=None):
+    def getLastCommandWithAnswer(
+        self, withTime: bool = False, direction: Optional[str] = None
+    ) -> str:
         retval = ""
         for log in self.logData[-2:]:
             if direction == None:
@@ -186,14 +192,14 @@ class SerialInterface(metaclass=ABCMeta):
                     retval += log["data"] + "\n"
         return retval
 
-    def _startTelegramListener(self):
+    def _startTelegramListener(self) -> None:
         """Private method which starts the receive thread."""
         self._receiving_worker_is_running = True
         self.receivingWorker = threading.Thread(target=self._telegramListenerJob)
         self.receivingWorker.start()
         return
 
-    def _stopTelegramListener(self):
+    def _stopTelegramListener(self) -> None:
         """Private method which stopps the receive thread."""
         try:
             """
@@ -213,7 +219,7 @@ class SerialInterface(metaclass=ABCMeta):
         return
 
     @abstractmethod
-    def _telegramListenerJob(self):
+    def _telegramListenerJob(self) -> None:
         """
         Private method which is called as receive thread.
         This must be implemented by the class that implements the abstract base class.
@@ -230,7 +236,7 @@ class SerialCommandInterface(SerialInterface):
     :param serialName: Name of the serial interface.
     """
 
-    def __init__(self, serialName):
+    def __init__(self, serialName: str):
         """Constructor"""
         self.waiting = dict()
         self.waiting[CommandType.COMMAND.value] = None
@@ -243,7 +249,9 @@ class SerialCommandInterface(SerialInterface):
         super().__init__(serialName)
         return
 
-    def waitForReplyString(self, commandType, timeout=None):
+    def waitForReplyString(
+        self, commandType: CommandType, timeout: Optional[float] = None
+    ) -> str:
         """Waiting for the reply string.
 
         :param commandType: Type of the command.
@@ -256,11 +264,12 @@ class SerialCommandInterface(SerialInterface):
             raise ZahnerConnectionError("Connection to the device interrupted")
         return reply
 
-    def sendStringAndWaitForReplyString(self, string, commandType=CommandType.COMMAND):
+    def sendStringAndWaitForReplyString(
+        self, string: str, commandType: CommandType = CommandType.COMMAND
+    ) -> str:
         """Sending a string and waiting for the response.
 
         :param string: The string to send.
-        :param timeout: The timeout for reading, None for blocking.
         :type commandType: :class:`~zahner_potentiostat.scpi_control.serial_interface.CommandType`
         :returns: The answer string.
         """
@@ -270,7 +279,7 @@ class SerialCommandInterface(SerialInterface):
         reply = self.waitForReplyString(commandType)
         return reply
 
-    def _telegramListenerJob(self):
+    def _telegramListenerJob(self) -> None:
         """Method in which the receive thread runs.
 
         More doku is in the function.
@@ -362,13 +371,13 @@ class SerialDataInterface(SerialInterface):
     :param serialName: Name of the serial interface.
     """
 
-    def __init__(self, serialName):
+    def __init__(self, serialName: str):
         """Constructor"""
         self.queue = queue.SimpleQueue()
         super().__init__(serialName)
         return
 
-    def _telegramListenerJob(self):
+    def _telegramListenerJob(self) -> None:
         """Method in which the receive thread runs."""
         while self._receiving_worker_is_running:
             try:
@@ -386,14 +395,16 @@ class SerialDataInterface(SerialInterface):
             self.queue.put(None)
         return
 
-    def availableBytes(self):
+    def availableBytes(self) -> int:
         """Returns the available bytes.
 
         :returns: The available bytes.
         """
         return self.queue.qsize()
 
-    def readBytes(self, numberOfBytes, timeout=None):
+    def readBytes(
+        self, numberOfBytes: int, timeout: Optional[float] = None
+    ) -> ByteString:
         """Read bytesRead from the interface.
 
         :param numberOfBytes: The number of bytesRead to read.

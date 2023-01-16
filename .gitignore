@@ -8,3 +8,6 @@ __pycache__
 /sphinxenv/
 /dist/
 /*.egg-info/
+/.vs
+/docs/html/_static
+/source/_build

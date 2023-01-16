@@ -4,7 +4,7 @@
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
  /___/\_,_/_//_/_//_/\__/_/      \__/_/\__/_/\_\\__/_/ /_/_/\_\
 
-Copyright 2022 Zahner-Elektrik GmbH & Co. KG
+Copyright 2023 Zahner-Elektrik GmbH & Co. KG
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the "Software"),
@@ -29,6 +29,7 @@ from typing import Optional, Union
 import time
 import re
 import datetime
+import sys
 
 import numpy
 from .serial_interface import (
@@ -40,6 +41,22 @@ from .serial_interface import (
 from .datareceiver import DataReceiver
 from .error import ZahnerSCPIError
 from builtins import isinstance
+
+
+def firmwareStringToNumber(firmwareString):
+    softwareVersionRegex = re.compile(
+        "(?P<major>[\d]+).(?P<minor>[\d]+).(?P<build>[\d]+)(?P<additional>.*)"
+    )
+    softwareVersionMatch = softwareVersionRegex.match(firmwareString)
+    firmwareNumber = 0
+    firmwareNumber = firmwareNumber + 100000**2 * int(softwareVersionMatch["major"])
+    firmwareNumber = firmwareNumber + 100000**1 * int(softwareVersionMatch["minor"])
+    firmwareNumber = firmwareNumber + 100000**0 * int(softwareVersionMatch["build"])
+    return firmwareNumber
+
+
+requiredSoftwareVersionString = "1.1.0"
+requiredSoftwareVersion = firmwareStringToNumber(requiredSoftwareVersionString)
 
 
 class COUPLING(Enum):
@@ -154,37 +171,81 @@ class SCPIDevice:
 
     At the moment an autonomous measuring operation without connected computer is not possible.
 
+    When using multiple devices, these objects must each run in a separate thread.
+    It is not possible to pass these objects as argument for multiprocessing, because this object cannot be serialized.
+
     :param commandInterface: SerialCommandInterface object to control the device.
     :type commandInterface: :class:`~zahner_potentiostat.scpi_control.serial_interface.SerialCommandInterface`
     :param dataInterface: SerialDataInterface object for online data.
     :type dataInterface: :class:`~zahner_potentiostat.scpi_control.serial_interface.SerialDataInterface`
+    :param enablePackageUpdateWarning: False to disable warn output to the package version on the console.
     """
 
-    _commandInterface: SerialCommandInterface
-    """`SerialCommandInterface` object to control the device"""
-    _coupling: COUPLING
-    _raiseOnError: bool
-    _dataReceiver: Optional[DataReceiver]
+    _commandInterface: SerialCommandInterface = None
+    _coupling: COUPLING = COUPLING.POTENTIOSTATIC
+    _raiseOnError: bool = False
+    _dataReceiver: Optional[DataReceiver] = None
 
     def __init__(
         self,
         commandInterface: SerialCommandInterface,
         dataInterface: Optional[SerialDataInterface],
+        enablePackageUpdateWarning: bool = True,
     ):
         self._commandInterface = commandInterface
         self._coupling = COUPLING.POTENTIOSTATIC
         self._raiseOnError = False
-        if dataInterface is None:
-            self._dataReceiver = None
-        else:
+        if dataInterface is not None:
             self._dataReceiver = DataReceiver(dataInterface)
+        """
+        Read the device firmware version and check if the version matches the library.
+        """
+        deviceInformation = self.IDN()
+        softwareVersionString = (
+            deviceInformation.split(",")[3].replace("binary", "").strip()
+        )
+        softwareVersionNumber = firmwareStringToNumber(softwareVersionString)
+
+        if softwareVersionNumber == requiredSoftwareVersion:
+            pass
+        elif softwareVersionNumber < requiredSoftwareVersion:
+            errorString = f"""ERROR: Device firmware must be updated.
+
+The device firmware has the version {softwareVersionString}, but for this package the firmware version {requiredSoftwareVersionString} is needed.
+
+Please carefully read the manual from the following link for updating the device firmware and properly follow the provided instructions:
+https://download.zahner.de/ExternalPotentiostatUpdater/ZahnerPotentiostatUpdaterManual.pdf
+
+From the following link you can download the installer for the latest device software:
+https://download.zahner.de/ExternalPotentiostatUpdater/ZahnerPotentiostatUpdater_latest.exe
+
+For any questions or in case of problems please contact: support@zahner.de
+"""
+            print(errorString)
+            _ = input()
+            sys.exit()
+        elif (
+            softwareVersionNumber > requiredSoftwareVersion
+            and enablePackageUpdateWarning
+        ):
+            warningString = f"""WARNING: There might be an update available for the Python package.
+
+The Python package was installed for the devices firmware {requiredSoftwareVersionString}, but the found device has the firmware version {softwareVersionString}.
+So it could be possible that an update for the Python package is available.
+
+Check GitHub or pip for updates:
+https://github.com/Zahner-elektrik/zahner_potentiostat
+pip install zahner-potentiostat -U
+"""
+            print(warningString)
+
         return
 
     """
     Methods for managing the object and the connection.
     """
 
-    def close(self):
+    def close(self) -> None:
         """Close the Connection.
 
         Close the connection and stop the receiver.
@@ -202,7 +263,7 @@ class SCPIDevice:
         """
         return self._dataReceiver
 
-    def setRaiseOnErrorEnabled(self, enabled: bool = True):
+    def setRaiseOnErrorEnabled(self, enabled: bool = True) -> None:
         """Setting the error handling of the control object.
 
         If False, then strings from the device containing error are thrown as exceptions.
@@ -210,6 +271,7 @@ class SCPIDevice:
         :param enabled: True to throw execeptions on errors.
         """
         self._raiseOnError = enabled
+        return
 
     def getRaiseOnErrorEnabled(self) -> bool:
         """Read the error handling of the control object.
@@ -361,7 +423,7 @@ class SCPIDevice:
         return self._writeCommandToInterfaceAndReadLine(":SESO:CALO")
 
     def switchToEPCControl(self) -> str:
-        """Switch to EPC operation.
+        """Switch to EPC mode and switch off the potentiostat for safety.
 
         When this command is called, the device closes the USB connection and can only be controlled via the EPC interface.
         It must be switched back to the SCPI mode manually via Remote2 from the Thales side.
@@ -377,6 +439,39 @@ class SCPIDevice:
         if self._dataReceiver != None:
             self._dataReceiver.stop()
         return self._writeCommandToInterfaceAndReadLine(":SYST:SEPC")
+
+    def switchToEPCControlWithoutPotentiostatStateChange(self) -> str:
+        """Switch to EPC mode without changing settings on the potentiostat.
+
+        This function leaves the potentiostat in its current operating state and then switches to EPC mode.
+        This should only be used when it is really necessary to leave the potentiostat on,
+        because between the change of control no quantities like current and voltage are monitored.
+
+        When this command is called, the device closes the USB connection and can only be controlled via the EPC interface.
+        It must be switched back to the SCPI mode manually via Remote2 from the Thales side.
+
+        This function probably throws an exception, because the device disconnects from USB by software.
+        This must be received with try and catch.
+
+        To ensure that the switch between Thales and Python/SCPI is interference-free, the following procedure should be followed.
+        This is necessary to ensure that both Thales and Python/SCPI have calibrated offsets, otherwise jumps may occur when switching modes:
+
+         1. Connect Zennium with USB and EPC-device/power potentiostat (XPOT2, PP2x2, EL1002) with USB to the computer. As well as Zennium to power potentiostat by EPC cable.
+         2. Switch on all devices.
+         3. Allow the equipment to warm up for at least 30 minutes.
+         4. Select and calibrate the EPC-device in Thales (with Remote2).
+         5. Switching the EPC-device to SCPI mode via Remote2 command.
+         6. Performing the offset calibration with Python/SCPI.
+         7. Then it is possible to switch between Thales and Python/SCPI with the potentiostat switched on.
+
+        :SCPI-COMMAND: :SYST:HOTS
+        :returns: The response string from the device.
+        :rtype: string
+        """
+
+        if self._dataReceiver != None:
+            self._dataReceiver.stop()
+        return self._writeCommandToInterfaceAndReadLine(":SYST:HOTS")
 
     def setLineFrequency(self, frequency: float) -> str:
         """Set the line frequency of the device.
@@ -577,6 +672,37 @@ class SCPIDevice:
             command = ":SESO:STAT OFF"
         return self._writeCommandToInterfaceAndReadLine(command)
 
+    def _getRelationCommandParameter(self, relation: Union[RELATION, str]) -> str:
+        """Get the relation command parameter.
+
+        This function returns the parameter for the relation, which must be sent as SCPI command.
+
+        :param relation: The relation OCV or ZERO.
+        :type relation: :class:`~zahner_potentiostat.scpi_control.control.RELATION`
+        :returns: The parameter string
+        :rtype: string
+        """
+        if isinstance(relation, RELATION) and (
+            relation == RELATION.OCV or relation == RELATION.OCV.value
+        ):
+            command = "OCV"
+        elif isinstance(relation, str) and (
+            "OCV" in relation.upper() or "OCP" in relation.upper()
+        ):
+            command = "OCV"
+        else:
+            if isinstance(relation, RELATION) and (
+                relation == RELATION.ZERO or relation == RELATION.ZERO.value
+            ):
+                command = "0"
+            elif isinstance(relation, str) and (
+                "0" in relation or "ZERO" in relation.upper()
+            ):
+                command = "0"
+            else:
+                raise ValueError("invalid parameter `relation`")
+        return command
+
     def setVoltageRelation(self, relation: Union[RELATION, str]) -> str:
         """Set the relation of the voltage parameter for simple use.
 
@@ -593,17 +719,9 @@ class SCPIDevice:
         :returns: The response string from the device.
         :rtype: string
         """
-        # TODO: handling of parameter `relation` is not type safe
-        if isinstance(relation, RELATION) and (
-            relation == RELATION.OCV or relation == RELATION.OCV.value
-        ):
-            command = ":SESO:UREL OCV"
-        elif isinstance(relation, str) and ("OCV" in relation or "OCP" in relation):
-            command = ":SESO:UREL OCV"
-        else:
-            # TODO: This line looks like a silent failure. Either fix it or document it.
-            command = ":SESO:UREL 0"
-        return self._writeCommandToInterfaceAndReadLine(command)
+        return self._writeCommandToInterfaceAndReadLine(
+            f":SESO:UREL {self._getRelationCommandParameter(relation)}"
+        )
 
     def setVoltageValue(self, value: float) -> str:
         """Set the voltage parameter for simple use.
@@ -649,8 +767,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":SYST:MAC?")
 
-    def setVoltageRange(self, voltage) -> str:
-        # TODO: write type annotation for parameter `voltage`
+    def setVoltageRange(self, voltage: float) -> str:
         """Set the voltage range.
 
         This command sets the voltage range by an voltage value.
@@ -662,8 +779,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":SESO:VRNG " + str(voltage))
 
-    def setVoltageRangeIndex(self, voltage):
-        # TODO: write type annotation for parameter `voltage`
+    def setVoltageRangeIndex(self, voltage: int) -> str:
         """Set the voltage range.
 
         This command sets the voltage range by the range index.
@@ -776,8 +892,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":SESO:CRNG:IDX " + str(index))
 
-    def setCurrentRange(self, current) -> str:
-        # TODO: write type annotation for parameter `current`
+    def setCurrentRange(self, current: float) -> str:
         """Set the current range.
 
         This command sets a shunt.
@@ -869,22 +984,11 @@ class SCPIDevice:
         :returns: The response string from the device.
         :rtype: string
         """
+        return self._writeCommandToInterfaceAndReadLine(
+            f":PARA:UREL {self._getRelationCommandParameter(relation)}"
+        )
 
-        # TODO: handling of parameter `relation` is not type safe
-        # TODO: this function violates DRY; see `setVoltageRelation`
-        if isinstance(relation, RELATION) and (
-            relation == RELATION.OCV or relation == RELATION.OCV.value
-        ):
-            command = ":PARA:UREL OCV"
-        elif isinstance(relation, str) and ("OCV" in relation or "OCP" in relation):
-            command = ":PARA:UREL OCV"
-        else:
-            # TODO: This line looks like a silent failure. Either fix it or document it.
-            command = ":PARA:UREL 0"
-        return self._writeCommandToInterfaceAndReadLine(command)
-
-    def setVoltageParameter(self, value) -> str:
-        # TODO: annotate `value` type
+    def setVoltageParameter(self, value: float) -> str:
         """Set the voltage parameter for primitives.
 
         Primitves that need an voltage parameter like ramps use this parameter.
@@ -899,8 +1003,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":PARA:UVAL " + str(value))
 
-    def setCurrentParameter(self, value) -> str:
-        # TODO: annotate `value` type
+    def setCurrentParameter(self, value: float) -> str:
         """Set the current parameter for primitives.
 
         Primitves that need an current parameter like ramps use this parameter.
@@ -941,14 +1044,15 @@ class SCPIDevice:
         :returns: The response string from the device.
         :rtype: string
         """
-        # TODO: make `coupling` type-safe
         if isinstance(coupling, str):
-            if coupling in "pot" or coupling == COUPLING.POTENTIOSTATIC:
+            if "pot" in coupling:
                 command = ":SESO:COUP pot"
                 self._coupling = COUPLING.POTENTIOSTATIC
-            else:
+            elif "gal" in coupling:
                 command = ":SESO:COUP gal"
                 self._coupling = COUPLING.GALVANOSTATIC
+            else:
+                raise ValueError("invalid parameter `coupling`")
         elif isinstance(coupling, COUPLING):
             if coupling == COUPLING.POTENTIOSTATIC:
                 command = ":SESO:COUP pot"
@@ -961,7 +1065,7 @@ class SCPIDevice:
 
         return self._writeCommandToInterfaceAndReadLine(command)
 
-    def setBandwith(self, bandwith: int) -> str:
+    def setBandwith(self, bandwithIdx: int) -> str:
         """Set the bandwith of the device.
 
         The bandwidth of the device is automatically set correctly, it is not recommended to change it.
@@ -971,8 +1075,9 @@ class SCPIDevice:
         :returns: The response string from the device.
         :rtype: string
         """
-        # TODO: rename `bandwith` to `bandwidth_idx` (fix type and add `idx` for clarity)
-        return self._writeCommandToInterfaceAndReadLine(":SESO:BAND " + str(bandwith))
+        return self._writeCommandToInterfaceAndReadLine(
+            ":SESO:BAND " + str(bandwithIdx)
+        )
 
     def setFilterFrequency(self, frequency: float) -> str:
         """Set the filter frequency of the device.
@@ -1117,14 +1222,14 @@ class SCPIDevice:
         Enter the parameter as for :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.setTimeParameter`.
 
         :SCPI-COMMAND: :SESO:UILT <value>
-        :param time: the time in seconds
+        :param state: The time in seconds.
         :returns: The response string from the device.
         :rtype: string
         """
         time = self._processTimeInput(time)
         return self._writeCommandToInterfaceAndReadLine(":SESO:UILT " + str(time))
 
-    def setGlobalVoltageCheckEnabled(self, state: bool = True):
+    def setGlobalVoltageCheckEnabled(self, state: bool = True) -> str:
         """Switch global voltage check on or off.
 
         The voltage is absolute and independent of OCP/OCV.
@@ -1234,7 +1339,6 @@ class SCPIDevice:
         :returns: The response string from the device.
         :rtype: string
         """
-        # TODO: is `frequency` really a float or actually an int?
         return self._writeCommandToInterfaceAndReadLine(":SESO:SFRQ " + str(frequency))
 
     def setToleranceBreakEnabled(self, value: bool = True) -> str:
@@ -1351,8 +1455,7 @@ class SCPIDevice:
         :returns: The measured temperature in degree celsius.
         :rtype: float
         """
-        # TODO: does this really return a `float`? The called method returns a `str`
-        return self._writeCommandToInterfaceAndReadLine(":MEAS:TEMP?")
+        return self._writeCommandToInterfaceAndReadValue(":MEAS:TEMP?")
 
     def setStepSize(self, value: float) -> str:
         """Set the step size for primitives.
@@ -1367,7 +1470,11 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":PARA:STEP " + str(value))
 
-    def measureRampValueInTime(self, targetValue=None, duration=None):
+    def measureRampValueInTime(
+        self,
+        targetValue: Optional[float] = None,
+        duration: Optional[float] = None,
+    ) -> str:
         """Measuring a ramp with a target value in a duration.
 
         Potentiostatic or galvanostatic ramps are possible. With these ramps, the device selects the
@@ -1421,7 +1528,11 @@ class SCPIDevice:
                 self.setVoltageParameter(targetValue)
         return self._writeCommandToInterfaceAndReadLine(":MEAS:RMPT?")
 
-    def measureRampValueInScanRate(self, targetValue=None, scanrate=None):
+    def measureRampValueInScanRate(
+        self,
+        targetValue: Optional[float] = None,
+        scanrate: Optional[float] = None,
+    ) -> str:
         """Measuring a ramp to a target value with a scanrate.
 
         Potentiostatic or galvanostatic ramps are possible. With these ramps, the device selects the
@@ -1477,7 +1588,11 @@ class SCPIDevice:
                 self.setVoltageParameter(targetValue)
         return self._writeCommandToInterfaceAndReadLine(":MEAS:RMPS?")
 
-    def measureRampScanRateForTime(self, scanrate=None, time=None):
+    def measureRampScanRateForTime(
+        self,
+        scanrate: Optional[float] = None,
+        time: Optional[float] = None,
+    ) -> str:
         """Measuring with a scanrate for a time.
 
         Potentiostatic or galvanostatic ramps are possible. With these ramps,
@@ -1527,7 +1642,7 @@ class SCPIDevice:
             self.setScanRateParameter(scanrate)
         return self._writeCommandToInterfaceAndReadLine(":MEAS:RMPV?")
 
-    def measurePolarization(self):
+    def measurePolarization(self) -> str:
         """POGA - Measurement of a potentiostatic or galvanostatic polarization.
 
         This primitive outputs constant current or constant voltage for a maximum time, depending on
@@ -1573,7 +1688,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":MEAS:POGA?")
 
-    def measureOCVScan(self):
+    def measureOCVScan(self) -> str:
         """Measurement of open circuit voltage over time
 
         However, the primitive can be aborted prematurely if the voltage in potentiostatic operation,
@@ -1603,7 +1718,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadLine(":MEAS:OCVS?")
 
-    def measureOCV(self):
+    def measureOCV(self) -> str:
         """Measurement of open circuit voltage.
 
         The potentiostat is automatically switched off by this method.
@@ -1617,7 +1732,7 @@ class SCPIDevice:
         """
         return self._writeCommandToInterfaceAndReadValue(":MEAS:OCV?")
 
-    def measureIEStairs(self):
+    def measureIEStairs(self) -> str:
         """Measurement of a voltage or current staircase.
 
         This primitive outputs a voltage or current staircase from the current current or voltage
@@ -1660,7 +1775,7 @@ class SCPIDevice:
     Method which were composed from primitve as an example.
     """
 
-    def checkConnectionPolarity(self):
+    def checkConnectionPolarity(self) -> bool:
         """Check that the object is connected with the correct polarity.
 
         This function is only to simplify the development of measurement methods from primitives,
@@ -1676,7 +1791,13 @@ class SCPIDevice:
             raise ValueError("OCP/OCV must be positive. Change polarity.")
         return True
 
-    def measureCharge(self, current, stopVoltage, maximumTime, minimumVoltage=0):
+    def measureCharge(
+        self,
+        current: float,
+        stopVoltage: float,
+        maximumTime: Union[float, str],
+        minimumVoltage: float = 0,
+    ) -> str:
         """Charge an object.
 
         It is charged with a positive current until a maximum voltage is reached. A maximum
@@ -1707,7 +1828,13 @@ class SCPIDevice:
         self.setMinMaxVoltageParameterCheckEnabled(True)
         return self.measurePolarization()
 
-    def measureDischarge(self, current, stopVoltage, maximumTime, maximumVoltage=1000):
+    def measureDischarge(
+        self,
+        current: float,
+        stopVoltage: float,
+        maximumTime: Union[float, str],
+        maximumVoltage: Union[float, str] = 1000,
+    ) -> str:
         """Discharge an object.
 
         It is discharged with a negative current until a minimum voltage is reached. A maximum
@@ -1739,8 +1866,12 @@ class SCPIDevice:
         return self.measurePolarization()
 
     def measureProfile(
-        self, profileDict, coupling, scalingFactor=1, outputPrimitive="pol"
-    ):
+        self,
+        profileDict: list[dict[str, float]],
+        coupling: COUPLING,
+        scalingFactor: float = 1,
+        outputPrimitive: str = "pol",
+    ) -> None:
         """Output a sequence of POGA or ramps.
 
         With this command a defined number of potentiostatic or galvanostatic polarizations or ramps can be output
@@ -1760,7 +1891,7 @@ class SCPIDevice:
         and peculiarities. Short dead times where no measurements are taken for data processing.
 
         :param profileDict: Profile support points, see documentation above.
-        :param coupling: Coupling of measurement, input like :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.setCoupling`.
+        :param coupling: Coupling of measurement.
         :type coupling: :class:`~zahner_potentiostat.scpi_control.control.COUPLING`
         :param scalingFactor: Multiplier for the values from the dictionary, default 1, especially
                 for current normalization. But can also be used to multiply the voltage by a factor.
@@ -1804,14 +1935,14 @@ class SCPIDevice:
 
     def measurePITT(
         self,
-        targetVoltage,
-        endVoltage,
-        stepVoltage,
-        onTime,
-        openCircuitTime,
-        startWithOCVScan=True,
-        measureOnTargetVoltage=False,
-    ):
+        targetVoltage: float,
+        endVoltage: float,
+        stepVoltage: float,
+        onTime: Union[float, str],
+        openCircuitTime: Union[float, str],
+        startWithOCVScan: bool = True,
+        measureOnTargetVoltage: bool = False,
+    ) -> None:
         """PITT - Potentiostatic Intermittent Titration Technique
 
         This is a simple basic implementation of PITT.
@@ -1884,13 +2015,13 @@ class SCPIDevice:
 
     def measureGITT(
         self,
-        targetVoltage,
-        endVoltage,
-        current,
-        onTime,
-        openCircuitTime,
-        startWithOCVScan=False,
-    ):
+        targetVoltage: float,
+        endVoltage: float,
+        current: float,
+        onTime: Union[float, str],
+        openCircuitTime: Union[float, str],
+        startWithOCVScan: bool = False,
+    ) -> None:
         """GITT - Galvanostatic Intermittent Titration Technique
 
         This is a simple basic implementation of PITT.
@@ -1924,7 +2055,7 @@ class SCPIDevice:
 
         """
         The errors are needed by this function and are processed.
-        error 12 means limit reached.
+        Error 12 means limit reached.
         """
         oldRaiseOnErrorState = self.getRaiseOnErrorEnabled()
         self.setRaiseOnErrorEnabled(False)
@@ -1995,14 +2126,13 @@ class SCPIDevice:
         Reset the original error output.
         """
         self.setRaiseOnErrorEnabled(oldRaiseOnErrorState)
-
         return
 
     """
     Private internal used functions.
     """
 
-    def _processTimeInput(self, time):
+    def _processTimeInput(self, time: Union[float, str]) -> float:
         """Private function to process time inputs.
 
         This function processes the input to a floating point number with a time specification in
@@ -2041,7 +2171,7 @@ class SCPIDevice:
             retval = time
         return retval
 
-    def _writeCommandToInterfaceAndReadValue(self, string) -> float:
+    def _writeCommandToInterfaceAndReadValue(self, string: str) -> float:
         """Private function to send a command to the device and read a float.
 
         This function sends the data to the device with the class SerialCommandInterface and waits
@@ -2077,10 +2207,16 @@ class SCPIDevice:
             line = self._commandInterface.sendStringAndWaitForReplyString(
                 string, CommandType.COMMAND
             )
+
         if "error" in line:
             if DEBUG == True:
                 line = self._commandInterface.getLastCommandWithAnswer()
             if self._raiseOnError == True:
-                raise ZahnerSCPIError("Issue:\n" + line)
+                errorNumber = 42  # undefined error
+                numberRegex = re.compile(r".*?([0-9]+).*")
+                numberMatch = numberRegex.match(line)
+                if numberMatch.group(1) != None:
+                    errorNumber = int(numberMatch.group(1))
+                raise ZahnerSCPIError(errorNumber)
 
         return line

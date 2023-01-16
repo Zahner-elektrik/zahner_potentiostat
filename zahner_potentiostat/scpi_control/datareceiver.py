@@ -4,7 +4,7 @@
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
  /___/\_,_/_//_/_//_/\__/_/      \__/_/\__/_/\_\\__/_/ /_/_/\_\
 
-Copyright 2022 Zahner-Elektrik GmbH & Co. KG
+Copyright 2023 Zahner-Elektrik GmbH & Co. KG
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the "Software"),
@@ -31,6 +31,7 @@ from .serial_interface import SerialDataInterface
 from enum import Enum
 import copy
 import time
+from typing import Self, Union, Optional
 
 
 class PacketTypes(Enum):
@@ -70,7 +71,7 @@ class TrackTypes(Enum):
     VOLTAGE = 11
 
     @classmethod
-    def numberToTrack(cls, number):
+    def numberToTrack(cls, number: int) -> Self:
         """Convert a number to the TrackType.
 
         :param number: The number of the Track.
@@ -86,7 +87,7 @@ class TrackTypes(Enum):
             raise ValueError("Unknown Track")
 
     @classmethod
-    def stringToTrack(cls, string):
+    def stringToTrack(cls, string: str) -> Self:
         """Convert a string to the TrackType.
 
         :param string: The Track as string of the Track.
@@ -97,7 +98,7 @@ class TrackTypes(Enum):
                 return member
         raise ValueError()
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Overwrite the string representation of the object.
 
         :returns: The TrackTypes Type as String.
@@ -107,7 +108,7 @@ class TrackTypes(Enum):
         classname = split[1]
         return classname + "." + self.name
 
-    def toString(self):
+    def toString(self) -> str:
         """Convert the TrackTypes Type to a String.
 
         :returns: The TrackTypes Type as String.
@@ -145,26 +146,25 @@ class DataReceiver:
     :type dataInterface: :class:`~zahner_potentiostat.scpi_control.serial_interface.SerialDataInterface`
     """
 
-    _dataInterface: SerialDataInterface
-    # TODO: declare other attributes
+    _dataInterface: Union[SerialDataInterface, None] = None
+    _completeData: dict = dict()
+    _onlineData: dict = dict()
+    _currentTrackTypes: list = []
+    _lastHeaderSate: Union[HeaderState, None] = None
+    _lastPacketType: Union[HeaderState, None] = None
+    _maximumTimeInCycle: int = 0
+    _lastMaximumTime: int = 0
 
     def __init__(self, dataInterface: SerialDataInterface):
-        """Constructor"""
         self._dataInterface = dataInterface
-        self._completeData = dict()
-        self._onlineData = dict()
-        self._currentTrackTypes = []
-        self._lastHeaderSate = None
-        self._lastPacketType = None
-        self._maximumTimeInCycle = 0
-        self._lastMaximumTime = 0
         self._receiveThreadHandler = Thread(target=self._receiveDataThread)
         self._receiving_worker_is_running = True
         self._receiveThreadHandler.start()
         self._completeDataSemaphore = Semaphore(1)
         self._onlineDataSemaphore = Semaphore(1)
+        return
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the data receiver and close.
 
         This method stops the internal threads and closes the interface.
@@ -174,7 +174,7 @@ class DataReceiver:
         self._receiveThreadHandler.join()
         return
 
-    def getNumberOfCompleteAndOnlinePoints(self):
+    def getNumberOfCompleteAndOnlinePoints(self) -> int:
         """Get the number of received points.
 
         Returns the number of measurement points which are complete and which were received live.
@@ -184,7 +184,7 @@ class DataReceiver:
         """
         return self.getNumberOfCompletePoints() + self.getNumberOfOnlinePoints()
 
-    def getNumberOfCompletePoints(self):
+    def getNumberOfCompletePoints(self) -> int:
         """Get the number of received complete data.
 
         Returns the number of measurement points which are complete. Thus completed finished primitive.
@@ -199,7 +199,7 @@ class DataReceiver:
                 [len(self._completeData[key]) for key in self._completeData.keys()]
             )
 
-    def getNumberOfOnlinePoints(self):
+    def getNumberOfOnlinePoints(self) -> int:
         """Get the number of received live points.
 
         Returns the number of measurement points which are complete and which were received live.
@@ -212,7 +212,7 @@ class DataReceiver:
         else:
             return min([len(self._onlineData[key]) for key in self._onlineData.keys()])
 
-    def getTrackTypeList(self):
+    def getTrackTypeList(self) -> list[TrackTypes]:
         """List of track types that are currently being processed.
 
         At the moment with the PP2x2 and XPOT2 devices there is only voltage, current and time.
@@ -221,7 +221,12 @@ class DataReceiver:
         """
         return self._currentTrackTypes
 
-    def getCompleteTrack(self, track, minIndex=0, maxIndex=None):
+    def getCompleteTrack(
+        self,
+        track: Union[TrackTypes, int],
+        minIndex: int = 0,
+        maxIndex: Optional[int] = None,
+    ) -> list[float]:
         """Retrieves points to a completed data track.
 
         :param track: Track as string, number or TrackTypes.
@@ -239,7 +244,12 @@ class DataReceiver:
             key = track
         return self.getCompletePoints(minIndex, maxIndex)[key]
 
-    def getOnlineTrack(self, track, minIndex=0, maxIndex=None):
+    def getOnlineTrack(
+        self,
+        track: Union[TrackTypes, int],
+        minIndex: int = 0,
+        maxIndex: Optional[int] = None,
+    ) -> list[float]:
         """Retrieves points to a online/live data track.
 
         :param track: Track as string, number or TrackTypes.
@@ -257,7 +267,11 @@ class DataReceiver:
             key = track
         return self.getOnlinePoints(minIndex, maxIndex)[key]
 
-    def getCompletePoints(self, minIndex=0, maxIndex=None):
+    def getCompletePoints(
+        self,
+        minIndex: int = 0,
+        maxIndex: Optional[int] = None,
+    ) -> dict[str, list[float]]:
         """Retrieves points to all data tracks for completed data.
 
         :param minIndex: By default 0, this means from 0.
@@ -279,7 +293,11 @@ class DataReceiver:
                 retval[track] = retval[track][minIndex:maxIndex]
         return retval
 
-    def getOnlinePoints(self, minIndex=0, maxIndex=None):
+    def getOnlinePoints(
+        self,
+        minIndex: int = 0,
+        maxIndex: Optional[int] = None,
+    ) -> dict[str, list[float]]:
         """Retrieves points to all data tracks for online/live data.
 
         :param minIndex: By default 0, this means from 0.
@@ -301,7 +319,7 @@ class DataReceiver:
                 retval[track] = retval[track][minIndex:maxIndex]
         return retval
 
-    def getCompleteAndOnlinePoints(self):
+    def getCompleteAndOnlinePoints(self) -> dict[str, list[float]]:
         """Retrieves points to all data tracks for completed and online data.
 
         :returns: An array with the data for the track. Each returned data point consists of a
@@ -331,7 +349,7 @@ class DataReceiver:
     These do not have to be used or accessed by the user.
     """
 
-    def _receiveDataThread(self):
+    def _receiveDataThread(self) -> None:
         """Receive thread which calls the individual decoders for the different packets."""
         packetError = False
         while self._receiving_worker_is_running == True:
@@ -360,7 +378,7 @@ class DataReceiver:
                 raise ZahnerDataProtocolError("Unknown Packet: " + str(packetType))
         return
 
-    def _processDataLight(self, length):
+    def _processDataLight(self, length: int) -> None:
         """Process packet type DataLight"""
         numberOfTracks = length / 8
 
@@ -390,7 +408,7 @@ class DataReceiver:
             )
         return
 
-    def _processDataLightBulk(self, length):
+    def _processDataLightBulk(self, length: int) -> None:
         """Process packet type DataLightBulk"""
         length -= 8  # startindex
         startIndex = self._readU64()
@@ -416,7 +434,7 @@ class DataReceiver:
         self._onlineDataToCompleteData()
         return
 
-    def _sortOnlineDataByTrack(self, trackType):
+    def _sortOnlineDataByTrack(self, trackType: TrackTypes) -> None:
         """Sort the online data.
 
         Sorting the data according to one of the data tracks.
@@ -437,7 +455,7 @@ class DataReceiver:
         }
         return
 
-    def _processDataLightBulkAppendum(self, length):
+    def _processDataLightBulkAppendum(self, length: int) -> None:
         """Process packet type DataLightBulkAppendum.
 
         This data must then be sorted into the online data.
@@ -463,7 +481,7 @@ class DataReceiver:
         self._onlineDataToCompleteData()
         return
 
-    def _processMeasurementHeader(self, length):
+    def _processMeasurementHeader(self, length: int) -> None:
         """Process packet type MeasurementHeader"""
         measurementType = self._readU64()
         measurementState = self._readU64()
@@ -485,7 +503,7 @@ class DataReceiver:
         self._lastHeaderSate = measurementState
         return
 
-    def _processMeasurementTracks(self, length):
+    def _processMeasurementTracks(self, length: int) -> None:
         """Process packet type MeasurementTracks"""
         numberOfTracks = self._readU64()
         newTrackTypes = []
@@ -510,7 +528,7 @@ class DataReceiver:
                 raise ZahnerDataProtocolError("Primitive track types mismatch.")
         return
 
-    def _readU64(self):
+    def _readU64(self) -> int:
         """Read unsigned 64 bit integer from the interface.
 
         :returns: The read value.
@@ -518,7 +536,7 @@ class DataReceiver:
         data = self._dataInterface.readBytes(8)
         return struct.unpack("Q", data[0:8])[0]
 
-    def _readF64(self):
+    def _readF64(self) -> float:
         """Read 64 bit floating point from the interface.
 
         :returns: The read value.
@@ -526,7 +544,7 @@ class DataReceiver:
         data = self._dataInterface.readBytes(8)
         return struct.unpack("d", data[0:8])[0]
 
-    def _readString(self):
+    def _readString(self) -> str:
         """Read a string from the interface.
 
         :returns: The read string.
@@ -541,14 +559,14 @@ class DataReceiver:
 
         return data.decode("ASCII")
 
-    def _clearOnlineData(self):
+    def _clearOnlineData(self) -> None:
         """Clear the received online data."""
         with self._onlineDataSemaphore:
             for track in self._currentTrackTypes:
                 self._onlineData[track] = []
         return
 
-    def _onlineDataToCompleteData(self):
+    def _onlineDataToCompleteData(self) -> None:
         """Transfer online to complete data."""
         with self._completeDataSemaphore:
             for track in self._currentTrackTypes:
