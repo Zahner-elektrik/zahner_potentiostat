@@ -7,6 +7,9 @@ It was developed to **easily integrate** external Zahner Potentiostats into Pyth
 The control concept is that there are different primitives which can be combined for different electrochemical measurement methods.  
 These primitives can all be configured differently to match the application. In the documentation in the respective function all possible configuration setter methods are listed. The complete documentation of the functions can be found on the [API documentation website](https://doc.zahner.de/zahner_potentiostat/).  
 
+> [!NOTE]  
+> **Only with this library and a PP212, PP222, PP242, EL1002 or XPOT2 device you can not use AC methods. For AC methods like EIS a [Zennium](https://zahner.de/products#potentiostats) with [EPC](https://zahner.de/products-details/addon-cards/epc42) and the [thales_remote](https://github.com/Zahner-elektrik/Thales-Remote-Python) library is necessary.**
+
 **The following [primitives](https://en.wikipedia.org/wiki/Language_primitive) are available to compose methods with:**  
 
 * Potentiostatic or galvanostatic polarization  
@@ -77,7 +80,7 @@ ZahnerPP2x2.measurePolarization()
 
 The application of the library is shown in the example repository [Zahner-Remote-Python](https://github.com/Zahner-elektrik/Zahner-Remote-Python).
 
-# 📧 Haveing a question?
+# 📧 Having a question?
 
 Send an <a href="mailto:support@zahner.de?subject=Zahner-Remote-Python Question&body=Your Message">e-mail</a> to our support team.
 
