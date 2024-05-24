@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=61.0", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zahner_potentiostat"
+authors = [{ name = "Maximilian Krapp", email = "maximilian.krapp@zahner.de" }]
+description = "Library to control Zahner Potentiostats."
+keywords = [
+    "potentiostat", "electrochemistry", "chemistry", "eis", "cyclic voltammetry", "fuel-cell", "battery",
+]
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+dependencies = [
+    "matplotlib", "pyserial", "numpy"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Intended Audience :: Manufacturing",
+
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dynamic = ["version"]
+
+[project.urls]
+"Documentation"= "https://doc.zahner.de/zahner_potentiostat"
+"Examples"= "https://github.com/Zahner-elektrik/Zahner-Remote-Python"
+"Source Code"= "https://github.com/Zahner-elektrik/zahner_potentiostat"
+"Bug Tracker"= "https://github.com/Zahner-elektrik/zahner_potentiostat/issues"
+"Homepage" = "https://zahner.de/"
+
+[tool.setuptools_scm]
+
+[tool.setuptools.packages.find]
+where = ["."]  # list of folders that contain the packages (["."] by default)
+include = ["zahner_potentiostat*"]  # package names should match these glob patterns (["*"] by default)
+
+
