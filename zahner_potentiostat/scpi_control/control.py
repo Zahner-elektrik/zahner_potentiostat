@@ -1181,7 +1181,7 @@ pip install zahner-potentiostat -U
         return self._writeCommandToInterfaceAndReadLine(":PARA:ULIM:MIN " + str(value))
 
     def setMaximumCurrentParameter(self, value: float) -> str:
-        """Set the maximum voltage parameter for primitives.
+        """Set the maximum currerent parameter for primitives.
 
         The current is absolute with sign.
 
@@ -1197,7 +1197,7 @@ pip install zahner-potentiostat -U
         return self._writeCommandToInterfaceAndReadLine(":PARA:ILIM:MAX " + str(value))
 
     def setMinimumCurrentParameter(self, value: float) -> str:
-        """Set the minimum voltage parameter for primitives.
+        """Set the minimum current parameter for primitives.
 
         The current is absolute with sign.
 
