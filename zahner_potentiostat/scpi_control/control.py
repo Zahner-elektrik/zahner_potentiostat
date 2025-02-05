@@ -1606,8 +1606,8 @@ pip install zahner-potentiostat -U
         starts from the final value of the last executed pimitive.
         However, if the last primitive had a different coupling, a new value must be specified.
 
-        If the scanrate is not specifiedet the last value of the method :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.setScanRateParameter` is used.
-        The same applies to duration there the value of the method :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.setTimeParameter` is used.
+        If the scanrate is not specified the last value of the method :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.setScanRateParameter` is used.
+        The same applies to duration where the value of the method :func:`~zahner_potentiostat.scpi_control.control.SCPIDevice.setTimeParameter` is used.
 
         Here the sign of the ramp is important and indicates the direction of the ramp.
         The unit is in V/s or A/s depending on whether the command is called galvanostatic or potentiostatic.
