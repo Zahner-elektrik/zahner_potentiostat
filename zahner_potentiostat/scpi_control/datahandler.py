@@ -1,10 +1,10 @@
-"""
+r"""
   ____       __                        __    __   __      _ __
  /_  / ___ _/ /  ___  ___ ___________ / /__ / /__/ /_____(_) /__
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
  /___/\_,_/_//_/_//_/\__/_/      \__/_/\__/_/\_\\__/_/ /_/_/\_\
 
-Copyright 2023 Zahner-Elektrik GmbH & Co. KG
+Copyright 2025 Zahner-Elektrik GmbH & Co. KG
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the "Software"),
@@ -41,10 +41,8 @@ class DataManager:
     :type dataReceiver: :class:`~zahner_potentiostat.scpi_control.datareceiver.DataReceiver`
     """
 
-    _receiver: DataReceiver = None
-
     def __init__(self, dataReceiver):
-        self._receiver = dataReceiver
+        self._receiver: DataReceiver = dataReceiver
         return
 
     def plotTIUData(

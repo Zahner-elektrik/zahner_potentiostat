@@ -1,10 +1,10 @@
-"""
+r"""
   ____       __                        __    __   __      _ __
  /_  / ___ _/ /  ___  ___ ___________ / /__ / /__/ /_____(_) /__
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
  /___/\_,_/_//_/_//_/\__/_/      \__/_/\__/_/\_\\__/_/ /_/_/\_\
 
-Copyright 2023 Zahner-Elektrik GmbH & Co. KG
+Copyright 2025 Zahner-Elektrik GmbH & Co. KG
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the "Software"),
@@ -146,22 +146,23 @@ class DataReceiver:
     :type dataInterface: :class:`~zahner_potentiostat.scpi_control.serial_interface.SerialDataInterface`
     """
 
-    _dataInterface: Union[SerialDataInterface, None] = None
-    _completeData: dict = dict()
-    _onlineData: dict = dict()
-    _currentTrackTypes: list = []
-    _lastHeaderSate: Union[HeaderState, None] = None
-    _lastPacketType: Union[HeaderState, None] = None
-    _maximumTimeInCycle: int = 0
-    _lastMaximumTime: int = 0
-
     def __init__(self, dataInterface: SerialDataInterface):
-        self._dataInterface = dataInterface
+        self._dataInterface: Union[SerialDataInterface, None] = dataInterface
+        self._completeData: dict = dict()
+        self._onlineData: dict = dict()
+        self._currentTrackTypes: list = []
+        self._lastHeaderSate: Union[HeaderState, None] = None
+        self._lastPacketType: Union[HeaderState, None] = None
+        self._maximumTimeInCycle: int = 0
+        self._lastMaximumTime: int = 0
+
+        self._completeDataSemaphore = Semaphore(1)
+        self._onlineDataSemaphore = Semaphore(1)
+
         self._receiveThreadHandler = Thread(target=self._receiveDataThread)
         self._receiving_worker_is_running = True
         self._receiveThreadHandler.start()
-        self._completeDataSemaphore = Semaphore(1)
-        self._onlineDataSemaphore = Semaphore(1)
+        
         return
 
     def stop(self) -> None:

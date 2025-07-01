@@ -1,10 +1,10 @@
-"""
+r"""
   ____       __                        __    __   __      _ __
  /_  / ___ _/ /  ___  ___ ___________ / /__ / /__/ /_____(_) /__
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
  /___/\_,_/_//_/_//_/\__/_/      \__/_/\__/_/\_\\__/_/ /_/_/\_\
 
-Copyright 2023 Zahner-Elektrik GmbH & Co. KG
+Copyright 2025 Zahner-Elektrik GmbH & Co. KG
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the "Software"),
@@ -45,7 +45,7 @@ from builtins import isinstance
 
 def firmwareStringToNumber(firmwareString):
     softwareVersionRegex = re.compile(
-        "(?P<major>[\d]+).(?P<minor>[\d]+).(?P<build>[\d]+)(?P<additional>.*)"
+        r"(?P<major>[\d]+).(?P<minor>[\d]+).(?P<build>[\d]+)(?P<additional>.*)"
     )
     softwareVersionMatch = softwareVersionRegex.match(firmwareString)
     firmwareNumber = 0
@@ -79,7 +79,7 @@ class RELATION(Enum):
 
 
 class SCPIDevice:
-    """General important information for the control of the devices with this class.
+    r"""General important information for the control of the devices with this class.
 
     The control concept is that via `SCPI <https://de.wikipedia.org/wiki/Standard_Commands_for_Programmable_Instruments>`_ with the setter methods parameters are set which configure
     the primitives.
@@ -181,11 +181,6 @@ class SCPIDevice:
     :param enablePackageUpdateWarning: False to disable warn output to the package version on the console.
     """
 
-    _commandInterface: SerialCommandInterface = None
-    _coupling: COUPLING = COUPLING.POTENTIOSTATIC
-    _raiseOnError: bool = False
-    _dataReceiver: Optional[DataReceiver] = None
-
     def __init__(
         self,
         commandInterface: SerialCommandInterface,
@@ -195,6 +190,7 @@ class SCPIDevice:
         self._commandInterface = commandInterface
         self._coupling = COUPLING.POTENTIOSTATIC
         self._raiseOnError = False
+        self._dataReceiver: Optional[DataReceiver] = None
         if dataInterface is not None:
             self._dataReceiver = DataReceiver(dataInterface)
         """
@@ -285,7 +281,7 @@ pip install zahner-potentiostat -U
     """
 
     def IDN(self) -> str:
-        """Read informations about the device.
+        r"""Read informations about the device.
 
         The device uses the `SCPI <https://de.wikipedia.org/wiki/Standard_Commands_for_Programmable_Instruments>`_ protocol on the interface.
 
@@ -302,7 +298,7 @@ pip install zahner-potentiostat -U
         return self._writeCommandToInterfaceAndReadLine("*IDN?")
 
     def readDeviceInformations(self) -> str:
-        """Read informations about the device.
+        r"""Read informations about the device.
 
         The device uses the `SCPI <https://de.wikipedia.org/wiki/Standard_Commands_for_Programmable_Instruments>`_ protocol on the interface.
 
@@ -328,7 +324,7 @@ pip install zahner-potentiostat -U
         return self.IDN()
 
     def clearState(self) -> str:
-        """Clear device state.
+        r"""Clear device state.
 
         Deleting the device state, for example, if the Global Limits have been exceeded.
         The error numbers are described in the class :class:`~zahner_potentiostat.scpi_control.error.ZahnerSCPIError`.
@@ -340,7 +336,7 @@ pip install zahner-potentiostat -U
         return self._writeCommandToInterfaceAndReadLine("*CLS")
 
     def readState(self) -> str:
-        """Read device state.
+        r"""Read device state.
 
         Read the device state, for example, if the Global Limits have been exceeded.
         The error numbers are described in the class :class:`~zahner_potentiostat.scpi_control.error.ZahnerSCPIError`.
@@ -366,7 +362,7 @@ pip install zahner-potentiostat -U
         return status
 
     def resetCommand(self) -> str:
-        """Reset the device.
+        r"""Reset the device.
 
         **THIS FUNCTION CAN BE CALLED FROM AN OTHER THREAD**
 

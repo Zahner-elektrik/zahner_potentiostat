@@ -1,10 +1,10 @@
-"""
+r"""
   ____       __                        __    __   __      _ __
  /_  / ___ _/ /  ___  ___ ___________ / /__ / /__/ /_____(_) /__
   / /_/ _ `/ _ \/ _ \/ -_) __/___/ -_) / -_)  '_/ __/ __/ /  '_/
  /___/\_,_/_//_/_//_/\__/_/      \__/_/\__/_/\_\\__/_/ /_/_/\_\
 
-Copyright 2023 Zahner-Elektrik GmbH & Co. KG
+Copyright 2025 Zahner-Elektrik GmbH & Co. KG
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the "Software"),
@@ -71,7 +71,7 @@ class SCPIDeviceSearcher:
         self.dataInterface = None
 
     def searchDevices(self) -> list[str]:
-        """Search connected devices with IDN command.
+        r"""Search connected devices with IDN command.
 
         It is NOT recommended to use this command, because it opens all serial ports of the computer
         and speaks to the devices with the string \*IDN?, this could cause interference with the devices.
@@ -82,7 +82,7 @@ class SCPIDeviceSearcher:
         return devices
 
     def searchZahnerDevices(self) -> list[str]:
-        """Search connected devices with Zahner PID and VID and IDN command.
+        r"""Search connected devices with Zahner PID and VID and IDN command.
 
         This command should be used to search for Zahner devices.
         Only Zahner devices are addressed for identification with this command.
@@ -94,7 +94,7 @@ class SCPIDeviceSearcher:
         return devices
 
     def searchSerialInterfacesWithZahnerVIDPID(self) -> list[str]:
-        """Search serial interfaces with Zahner PID and VID.
+        r"""Search serial interfaces with Zahner PID and VID.
 
         Checks the VID and PID of the serial interfaces, if it is a Zahner device.
 
@@ -163,7 +163,7 @@ class SCPIDeviceSearcher:
         return result
 
     def searchDevicesWithIDN(self, ports: str = None) -> list[str]:
-        """Search connected devices with IDN command.
+        r"""Search connected devices with IDN command.
 
         Opens all serial interfaces and sends the string \*IDN? to the device and evaluates the response.
         If a list of serial interfaces is passed for the ports parameter, only this list of ports is checked.
